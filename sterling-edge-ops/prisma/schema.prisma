@@ -1,0 +1,495 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  DIRECTOR
+  PROCUREMENT_OFFICER
+  FINANCE_OFFICER
+  VIEWER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          UserRole  @default(VIEWER)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relationships
+  ownedClients  Client[]        @relation("ClientOwner")
+  tasks         Task[]          @relation("TaskAssignee")
+  createdTasks  Task[]          @relation("TaskCreator")
+  notes         Note[]
+  sessions      Session[]
+  accounts      Account[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─── CRM ─────────────────────────────────────────────────────────────────────
+
+enum ClientType {
+  MINISTRY
+  AGENCY
+  COUNTY_GOVERNMENT
+  PRIVATE_COMPANY
+  NGO
+  INTERNATIONAL_ORG
+  INDIVIDUAL
+}
+
+enum RelationshipStatus {
+  ACTIVE
+  DORMANT
+  PROSPECT
+  BLACKLISTED
+}
+
+enum PipelineStage {
+  LEAD_IDENTIFIED
+  CONTACT_MADE
+  REQUIREMENTS_RECEIVED
+  QUOTE_SENT
+  NEGOTIATION
+  WON
+  LOST
+  DORMANT
+}
+
+model Client {
+  id                 String             @id @default(cuid())
+  name               String
+  type               ClientType
+  registrationNumber String?
+  kraPin             String?
+  contactPerson      String?
+  contactEmail       String?
+  contactPhone       String?
+  physicalAddress    String?
+  county             String?
+  website            String?
+  relationshipOwner  String
+  ownerId            String?
+  owner              User?              @relation("ClientOwner", fields: [ownerId], references: [id])
+  lastInteraction    DateTime?
+  nextFollowUp       DateTime?
+  opportunityValue   Float?
+  relationshipStatus RelationshipStatus @default(PROSPECT)
+  pipelineStage      PipelineStage      @default(LEAD_IDENTIFIED)
+  priority           Priority           @default(MEDIUM)
+  tags               String[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Relationships
+  tenders            Tender[]
+  contracts          Contract[]
+  contacts           Contact[]
+  notes              Note[]             @relation("ClientNotes")
+  documents          Document[]         @relation("ClientDocuments")
+  tasks              Task[]             @relation("ClientTasks")
+
+  @@map("clients")
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name        String
+  title       String?
+  email       String?
+  phone       String?
+  department  String?
+  isPrimary   Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("contacts")
+}
+
+// ─── Tender Management ───────────────────────────────────────────────────────
+
+enum TenderEligibility {
+  AGPO
+  OPEN
+  RESTRICTED
+  INTERNATIONAL
+}
+
+enum TenderStage {
+  IDENTIFIED
+  UNDER_REVIEW
+  DOCUMENTS_GATHERING
+  PRICING
+  TECHNICAL_RESPONSE
+  LEGAL_REVIEW
+  SUBMITTED
+  AWAITING_AWARD
+  WON
+  LOST
+  DECLINED
+}
+
+enum BidDecision {
+  PURSUE
+  DECLINE
+  MONITOR
+  PENDING
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Tender {
+  id                   String            @id @default(cuid())
+  tenderName           String
+  tenderNumber         String?
+  procuringEntity      String
+  clientId             String?
+  client               Client?           @relation(fields: [clientId], references: [id])
+  category             String
+  eligibility          TenderEligibility @default(OPEN)
+  deadline             DateTime
+  bidBondRequired      Boolean           @default(false)
+  bidBondAmount        Float?
+  estimatedValue       Float?
+  stage                TenderStage       @default(IDENTIFIED)
+  bidDecision          BidDecision       @default(PENDING)
+  bidScore             Int?
+  evaluationRisk       String?
+  mandatoryDocuments   String[]
+  requiredLicenses     String[]
+  technicalRequirements String?
+  financialRequirements String?
+  clarifications       String?
+  addenda              String?
+  submissionMethod     String?
+  submittedAt          DateTime?
+  awardedAt            DateTime?
+  priority             Priority          @default(MEDIUM)
+  notes                String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  // Bid scoring breakdown
+  eligibilityScore     Int?
+  capitalScore         Int?
+  deadlineScore        Int?
+  documentScore        Int?
+  supplierScore        Int?
+  marginScore          Int?
+  relationshipScore    Int?
+  licenseScore         Int?
+  paymentRiskScore     Int?
+
+  // Relationships
+  documents            Document[]        @relation("TenderDocuments")
+  tasks                Task[]            @relation("TenderTasks")
+  notes_rel            Note[]            @relation("TenderNotes")
+
+  @@map("tenders")
+}
+
+// ─── Supplier Management ─────────────────────────────────────────────────────
+
+enum SupplierReliability {
+  EXCELLENT
+  GOOD
+  AVERAGE
+  POOR
+  BLACKLISTED
+}
+
+model Supplier {
+  id                 String              @id @default(cuid())
+  name               String
+  registrationNumber String?
+  kraPin             String?
+  category           String
+  subcategory        String?
+  contactPerson      String?
+  contactEmail       String?
+  contactPhone       String?
+  physicalAddress    String?
+  county             String?
+  website            String?
+  reliability        SupplierReliability @default(GOOD)
+  deliveryCapacity   String?
+  creditTerms        String?
+  paymentTerms       String?
+  leadTimeDays       Int?
+  minimumOrderValue  Float?
+  pastPerformance    String?
+  requiredCerts      String[]
+  tags               String[]
+  active             Boolean             @default(true)
+  notes              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  // Relationships
+  priceHistory       SupplierPriceHistory[]
+  contracts          Contract[]
+  documents          Document[]          @relation("SupplierDocuments")
+  tasks              Task[]              @relation("SupplierTasks")
+  notes_rel          Note[]              @relation("SupplierNotes")
+
+  @@map("suppliers")
+}
+
+model SupplierPriceHistory {
+  id          String   @id @default(cuid())
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  item        String
+  unit        String?
+  price       Float
+  currency    String   @default("KES")
+  date        DateTime
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@map("supplier_price_history")
+}
+
+// ─── Contract / Order Tracking ───────────────────────────────────────────────
+
+enum ContractStatus {
+  AWARDED
+  SOURCING
+  PO_ISSUED
+  GOODS_IN_TRANSIT
+  DELIVERED
+  INVOICED
+  PAID
+  CLOSED
+  DISPUTED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Contract {
+  id                 String         @id @default(cuid())
+  title              String
+  contractNumber     String?
+  clientId           String
+  client             Client         @relation(fields: [clientId], references: [id])
+  supplierId         String?
+  supplier           Supplier?      @relation(fields: [supplierId], references: [id])
+  tenderId           String?
+  contractValue      Float
+  costOfGoods        Float?
+  logisticsCost      Float?
+  otherCosts         Float?
+  marginEstimate     Float?
+  grossMargin        Float?
+  deliveryDeadline   DateTime?
+  paymentTerms       String?
+  expectedPaymentDate DateTime?
+  supplierPaymentDate DateTime?
+  financingRequired  Boolean        @default(false)
+  financingAmount    Float?
+  workingCapital     Float?
+  financingGap       Float?
+  status             ContractStatus @default(AWARDED)
+  riskLevel          RiskLevel      @default(MEDIUM)
+  expectedProfit     Float?
+  notes              String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  // Relationships
+  documents          Document[]     @relation("ContractDocuments")
+  tasks              Task[]         @relation("ContractTasks")
+  notes_rel          Note[]         @relation("ContractNotes")
+  payments           Payment[]
+
+  @@map("contracts")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  amount      Float
+  currency    String   @default("KES")
+  type        String
+  dueDate     DateTime?
+  paidDate    DateTime?
+  status      String
+  reference   String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("payments")
+}
+
+// ─── Task Management ─────────────────────────────────────────────────────────
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  assigneeId  String?
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creatorId   String?
+  creator     User?        @relation("TaskCreator", fields: [creatorId], references: [id])
+  clientId    String?
+  client      Client?      @relation("ClientTasks", fields: [clientId], references: [id])
+  tenderId    String?
+  tender      Tender?      @relation("TenderTasks", fields: [tenderId], references: [id])
+  contractId  String?
+  contract    Contract?    @relation("ContractTasks", fields: [contractId], references: [id])
+  supplierId  String?
+  supplier    Supplier?    @relation("SupplierTasks", fields: [supplierId], references: [id])
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("tasks")
+}
+
+// ─── Notes ───────────────────────────────────────────────────────────────────
+
+model Note {
+  id          String   @id @default(cuid())
+  content     String
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  clientId    String?
+  client      Client?  @relation("ClientNotes", fields: [clientId], references: [id])
+  tenderId    String?
+  tender      Tender?  @relation("TenderNotes", fields: [tenderId], references: [id])
+  contractId  String?
+  contract    Contract? @relation("ContractNotes", fields: [contractId], references: [id])
+  supplierId  String?
+  supplier    Supplier? @relation("SupplierNotes", fields: [supplierId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("notes")
+}
+
+// ─── Document Vault ──────────────────────────────────────────────────────────
+
+enum DocumentType {
+  COMPANY_REGISTRATION
+  AGPO_CERTIFICATE
+  KRA_PIN
+  TAX_COMPLIANCE
+  CR12
+  NCA_LICENSE
+  NEMA_LICENSE
+  SECTOR_LICENSE
+  BID_DOCUMENT
+  SUPPLIER_QUOTE
+  LPO
+  INVOICE
+  DELIVERY_NOTE
+  CONTRACT
+  BANK_GUARANTEE
+  BID_BOND
+  PERFORMANCE_BOND
+  INSURANCE
+  OTHER
+}
+
+model Document {
+  id           String       @id @default(cuid())
+  name         String
+  type         DocumentType
+  fileName     String
+  fileSize     Int?
+  mimeType     String?
+  url          String?
+  expiryDate   DateTime?
+  isVerified   Boolean      @default(false)
+  notes        String?
+  clientId     String?
+  client       Client?      @relation("ClientDocuments", fields: [clientId], references: [id])
+  tenderId     String?
+  tender       Tender?      @relation("TenderDocuments", fields: [tenderId], references: [id])
+  supplierId   String?
+  supplier     Supplier?    @relation("SupplierDocuments", fields: [supplierId], references: [id])
+  contractId   String?
+  contract     Contract?    @relation("ContractDocuments", fields: [contractId], references: [id])
+  uploadedById String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("documents")
+}
