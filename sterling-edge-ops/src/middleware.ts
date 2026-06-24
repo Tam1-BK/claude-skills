@@ -9,7 +9,15 @@ export default withAuth(
   function middleware(req: NextRequest & { nextauth: { token: any } }) {
     const { pathname } = req.nextUrl;
     const method = req.method;
-    const role: string | undefined = req.nextauth?.token?.role;
+    const token = req.nextauth?.token;
+    const role: string | undefined = token?.role;
+
+    // ── Unauthenticated API requests → 401 JSON (never redirect to /login) ──
+    if (pathname.startsWith("/api/") && !pathname.startsWith("/api/auth")) {
+      if (!token || token.active === false) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
 
     // ── CSRF: reject cross-origin state-changing requests ──────────────────
     if (MUTATING_METHODS.includes(method) && pathname.startsWith("/api/")) {
@@ -51,7 +59,15 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      // Page routes: redirect to /login if no valid, active token
+      // API routes: always pass through — the middleware function above returns 401 JSON
+      authorized: ({ token, req }) => {
+        const isApi =
+          req.nextUrl.pathname.startsWith("/api/") &&
+          !req.nextUrl.pathname.startsWith("/api/auth");
+        if (isApi) return true; // custom middleware function handles API auth with JSON 401
+        return !!token && token.active !== false;
+      },
     },
     pages: {
       signIn: "/login",

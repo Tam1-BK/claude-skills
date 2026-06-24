@@ -51,7 +51,7 @@ export default function LoginPage() {
         <div className="bg-white rounded-xl p-8 shadow-2xl">
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-900">Sign in</h2>
-            <p className="text-sm text-gray-500 mt-1">Access your workspace</p>
+            <p className="text-sm text-gray-500 mt-1">Private system — authorised users only</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -95,8 +95,13 @@ export default function LoginPage() {
             </Button>
           </form>
 
+          <p className="text-center text-xs text-gray-400 mt-5">
+            Don&apos;t have an account?{" "}
+            <span className="text-gray-500">Contact your administrator.</span>
+          </p>
+
           {process.env.NODE_ENV !== "production" && (
-            <div className="mt-6 p-3 bg-slate-50 rounded text-xs text-slate-500 space-y-1">
+            <div className="mt-4 p-3 bg-slate-50 rounded text-xs text-slate-500 space-y-1">
               <div className="font-medium text-slate-600 mb-2">Demo credentials:</div>
               <div>Admin: <span className="font-mono">admin@sterlingedge.co.ke / Admin@2024</span></div>
               <div>Director: <span className="font-mono">director@sterlingedge.co.ke / User@2024</span></div>

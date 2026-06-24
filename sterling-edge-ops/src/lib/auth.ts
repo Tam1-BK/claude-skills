@@ -13,9 +13,11 @@ const credentialsSchema = z.object({
 const isProd = process.env.NODE_ENV === "production";
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  // 8-hour sessions — work-day scoped; deactivated users are out within 1 hour (updateAge)
+  session: { strategy: "jwt", maxAge: 8 * 60 * 60, updateAge: 60 * 60 },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   // Harden session cookies: strict SameSite + Secure in production
   cookies: {
@@ -64,12 +66,36 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        // Initial sign-in — embed role and id into the JWT
         token.role = (user as any).role;
         token.id = user.id;
+        token.active = true;
+        return token;
       }
+
+      // Token refresh path — re-validate user is still active and sync role changes
+      if (token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { active: true, role: true },
+        }).catch(() => null);
+
+        if (!dbUser || !dbUser.active) {
+          // Mark deactivated — session callback will strip the user, middleware will block
+          token.active = false;
+        } else {
+          token.active = true;
+          token.role = dbUser.role; // Sync role changes made by admin
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
+      // Deactivated users get an expired session — client is forced to re-authenticate
+      if (!token.active) {
+        return { ...session, user: undefined, expires: new Date(0).toISOString() } as any;
+      }
       if (session.user) {
         (session.user as any).role = token.role;
         (session.user as any).id = token.id;

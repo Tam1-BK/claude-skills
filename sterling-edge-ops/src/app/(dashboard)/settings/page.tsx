@@ -33,7 +33,7 @@ export default async function SettingsPage() {
           <h2 className="font-semibold text-sm mb-4">User Roles</h2>
           <div className="space-y-2 text-sm">
             {[
-              { role: "Admin", desc: "Full access — all modules, user management, system settings" },
+              { role: "Admin", desc: "Full access — all modules, user management, system settings. Only admins can create accounts." },
               { role: "Director", desc: "Full read/write access to all modules except user management" },
               { role: "Procurement Officer", desc: "Tenders, suppliers, contracts, tasks, and documents" },
               { role: "Finance Officer", desc: "Finance snapshot, contracts, payments, and documents" },
@@ -50,7 +50,7 @@ export default async function SettingsPage() {
         <div className="border rounded-lg p-5 bg-white">
           <h2 className="font-semibold text-sm mb-4">System Information</h2>
           <div className="space-y-2 text-sm text-muted-foreground">
-            <div>Sterling Edge Operations OS — v0.1.0</div>
+            <div>Sterling Edge Operations OS — RC1</div>
             <div>Company: Sterling Edge Ltd, Nairobi, Kenya</div>
             <div>Focus: Procurement, AGPO Tenders, Supply Contracts, Exim Trading</div>
           </div>
