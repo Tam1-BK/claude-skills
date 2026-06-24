@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, OPS_READ, OPS_WRITE } from "@/lib/api-utils";
+import { withAuth, OPS_READ, OPS_WRITE, auditLog, noStore } from "@/lib/api-utils";
 import { updateSupplierSchema } from "@/lib/validations";
 
 export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
@@ -20,23 +20,21 @@ export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
   });
 
   if (!supplier) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(supplier);
+  return noStore(NextResponse.json(supplier));
 }, OPS_READ);
 
-export const PATCH = withAuth(async (req: NextRequest, _session, ctx) => {
+export const PATCH = withAuth(async (req: NextRequest, session, ctx) => {
   const { id } = ctx.params!;
   const body = updateSupplierSchema.parse(await req.json());
 
-  const supplier = await prisma.supplier.update({
-    where: { id },
-    data: { ...body },
-  });
-
+  const supplier = await prisma.supplier.update({ where: { id }, data: { ...body } });
+  auditLog(session.user.id, "UPDATE", "supplier", id);
   return NextResponse.json(supplier);
 }, OPS_WRITE);
 
-export const DELETE = withAuth(async (_req: NextRequest, _session, ctx) => {
+export const DELETE = withAuth(async (_req: NextRequest, session, ctx) => {
   const { id } = ctx.params!;
   await prisma.supplier.update({ where: { id }, data: { active: false } });
+  auditLog(session.user.id, "DELETE", "supplier", id);
   return NextResponse.json({ success: true });
 }, OPS_WRITE);

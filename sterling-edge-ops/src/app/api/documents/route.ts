@@ -1,30 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, DOCS_READ, DOCS_WRITE } from "@/lib/api-utils";
+import {
+  withAuth, DOCS_READ, DOCS_WRITE, auditLog, noStore,
+  parsePagination, paginated,
+} from "@/lib/api-utils";
 import { createDocumentSchema } from "@/lib/validations";
 
 export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type") ?? "";
   const search = searchParams.get("search") ?? "";
+  const pagination = parsePagination(searchParams);
 
-  const documents = await prisma.document.findMany({
-    where: {
-      AND: [
-        search ? { name: { contains: search, mode: "insensitive" } } : {},
-        type ? { type: type as any } : {},
-      ],
-    },
-    include: {
-      client: { select: { name: true } },
-      tender: { select: { tenderName: true } },
-      supplier: { select: { name: true } },
-      contract: { select: { title: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const where = {
+    AND: [
+      search ? { name: { contains: search, mode: "insensitive" as const } } : {},
+      type ? { type: type as any } : {},
+    ],
+  };
 
-  return NextResponse.json(documents);
+  const [documents, total] = await Promise.all([
+    prisma.document.findMany({
+      where,
+      include: {
+        client: { select: { name: true } },
+        tender: { select: { tenderName: true } },
+        supplier: { select: { name: true } },
+        contract: { select: { title: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: pagination.skip,
+      take: pagination.pageSize,
+    }),
+    prisma.document.count({ where }),
+  ]);
+
+  return noStore(NextResponse.json(paginated(documents, total, pagination)));
 }, DOCS_READ);
 
 export const POST = withAuth(async (req: NextRequest, session) => {
@@ -49,5 +60,6 @@ export const POST = withAuth(async (req: NextRequest, session) => {
     },
   });
 
+  auditLog(session.user.id, "CREATE", "document", document.id, { name: document.name });
   return NextResponse.json(document, { status: 201 });
 }, DOCS_WRITE);

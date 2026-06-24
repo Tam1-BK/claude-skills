@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, OPS_READ, OPS_WRITE } from "@/lib/api-utils";
+import { withAuth, OPS_READ, OPS_WRITE, auditLog, noStore } from "@/lib/api-utils";
 import { updateTenderSchema } from "@/lib/validations";
 
 export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
@@ -24,26 +24,24 @@ export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
   });
 
   if (!tender) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(tender);
+  return noStore(NextResponse.json(tender));
 }, OPS_READ);
 
-export const PATCH = withAuth(async (req: NextRequest, _session, ctx) => {
+export const PATCH = withAuth(async (req: NextRequest, session, ctx) => {
   const { id } = ctx.params!;
   const body = updateTenderSchema.parse(await req.json());
 
   const data: Record<string, unknown> = { ...body };
   if (body.deadline) data.deadline = new Date(body.deadline);
 
-  const tender = await prisma.tender.update({
-    where: { id },
-    data: data as any,
-  });
-
+  const tender = await prisma.tender.update({ where: { id }, data: data as any });
+  auditLog(session.user.id, "UPDATE", "tender", id);
   return NextResponse.json(tender);
 }, OPS_WRITE);
 
-export const DELETE = withAuth(async (_req: NextRequest, _session, ctx) => {
+export const DELETE = withAuth(async (_req: NextRequest, session, ctx) => {
   const { id } = ctx.params!;
   await prisma.tender.delete({ where: { id } });
+  auditLog(session.user.id, "DELETE", "tender", id);
   return NextResponse.json({ success: true });
 }, OPS_WRITE);

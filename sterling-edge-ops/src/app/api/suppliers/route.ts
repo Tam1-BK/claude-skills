@@ -1,38 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, OPS_READ, OPS_WRITE } from "@/lib/api-utils";
+import {
+  withAuth, OPS_READ, OPS_WRITE, auditLog, noStore,
+  parsePagination, paginated,
+} from "@/lib/api-utils";
 import { createSupplierSchema } from "@/lib/validations";
 
 export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") ?? "";
   const reliability = searchParams.get("reliability") ?? "";
+  const pagination = parsePagination(searchParams);
 
-  const suppliers = await prisma.supplier.findMany({
-    where: {
-      AND: [
-        search ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { category: { contains: search, mode: "insensitive" } },
-            { contactPerson: { contains: search, mode: "insensitive" } },
-          ],
-        } : {},
-        reliability ? { reliability: reliability as any } : {},
-        { active: true },
-      ],
-    },
-    include: {
-      priceHistory: { orderBy: { date: "desc" }, take: 3 },
-      _count: { select: { contracts: true } },
-    },
-    orderBy: [{ reliability: "asc" }, { name: "asc" }],
-  });
+  const where = {
+    AND: [
+      search ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { category: { contains: search, mode: "insensitive" as const } },
+          { contactPerson: { contains: search, mode: "insensitive" as const } },
+        ],
+      } : {},
+      reliability ? { reliability: reliability as any } : {},
+      { active: true },
+    ],
+  };
 
-  return NextResponse.json(suppliers);
+  const [suppliers, total] = await Promise.all([
+    prisma.supplier.findMany({
+      where,
+      include: {
+        priceHistory: { orderBy: { date: "desc" }, take: 3 },
+        _count: { select: { contracts: true } },
+      },
+      orderBy: [{ reliability: "asc" }, { name: "asc" }],
+      skip: pagination.skip,
+      take: pagination.pageSize,
+    }),
+    prisma.supplier.count({ where }),
+  ]);
+
+  return noStore(NextResponse.json(paginated(suppliers, total, pagination)));
 }, OPS_READ);
 
-export const POST = withAuth(async (req: NextRequest) => {
+export const POST = withAuth(async (req: NextRequest, session) => {
   const body = createSupplierSchema.parse(await req.json());
 
   const supplier = await prisma.supplier.create({
@@ -61,5 +72,6 @@ export const POST = withAuth(async (req: NextRequest) => {
     },
   });
 
+  auditLog(session.user.id, "CREATE", "supplier", supplier.id, { name: supplier.name });
   return NextResponse.json(supplier, { status: 201 });
 }, OPS_WRITE);

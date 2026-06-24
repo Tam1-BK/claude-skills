@@ -197,3 +197,18 @@ export const createDocumentSchema = z.object({
 });
 
 export const updateDocumentSchema = createDocumentSchema.partial();
+
+// ── Contacts ──────────────────────────────────────────────────────────────────
+
+export const createContactSchema = z.object({
+  clientId: z.string().min(1, "Client is required"),
+  name: z.string().min(1, "Name is required").max(200),
+  title: z.string().max(200).optional().nullable(),
+  email: z.string().email("Invalid email").optional().nullable().or(z.literal("")),
+  phone: z.string().max(50).optional().nullable(),
+  department: z.string().max(200).optional().nullable(),
+  isPrimary: z.boolean().optional().default(false),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export const updateContactSchema = createContactSchema.omit({ clientId: true }).partial();

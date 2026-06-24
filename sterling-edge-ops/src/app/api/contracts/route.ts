@@ -1,37 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, CONTRACTS_READ, CONTRACTS_WRITE } from "@/lib/api-utils";
+import {
+  withAuth, CONTRACTS_READ, CONTRACTS_WRITE, auditLog, noStore,
+  parsePagination, paginated,
+} from "@/lib/api-utils";
 import { createContractSchema } from "@/lib/validations";
 
 export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") ?? "";
   const status = searchParams.get("status") ?? "";
+  const pagination = parsePagination(searchParams);
 
-  const contracts = await prisma.contract.findMany({
-    where: {
-      AND: [
-        search ? {
-          OR: [
-            { title: { contains: search, mode: "insensitive" } },
-            { contractNumber: { contains: search, mode: "insensitive" } },
-          ],
-        } : {},
-        status ? { status: status as any } : {},
-      ],
-    },
-    include: {
-      client: { select: { name: true } },
-      supplier: { select: { name: true } },
-      payments: { orderBy: { dueDate: "asc" } },
-    },
-    orderBy: [{ deliveryDeadline: "asc" }],
-  });
+  const where = {
+    AND: [
+      search ? {
+        OR: [
+          { title: { contains: search, mode: "insensitive" as const } },
+          { contractNumber: { contains: search, mode: "insensitive" as const } },
+        ],
+      } : {},
+      status ? { status: status as any } : {},
+    ],
+  };
 
-  return NextResponse.json(contracts);
+  const [contracts, total] = await Promise.all([
+    prisma.contract.findMany({
+      where,
+      include: {
+        client: { select: { name: true } },
+        supplier: { select: { name: true } },
+        payments: { orderBy: { dueDate: "asc" } },
+      },
+      orderBy: [{ deliveryDeadline: "asc" }],
+      skip: pagination.skip,
+      take: pagination.pageSize,
+    }),
+    prisma.contract.count({ where }),
+  ]);
+
+  return noStore(NextResponse.json(paginated(contracts, total, pagination)));
 }, CONTRACTS_READ);
 
-export const POST = withAuth(async (req: NextRequest) => {
+export const POST = withAuth(async (req: NextRequest, session) => {
   const body = createContractSchema.parse(await req.json());
 
   const contractValue = Number(body.contractValue);
@@ -73,5 +84,6 @@ export const POST = withAuth(async (req: NextRequest) => {
     },
   });
 
+  auditLog(session.user.id, "CREATE", "contract", contract.id, { title: contract.title });
   return NextResponse.json(contract, { status: 201 });
 }, CONTRACTS_WRITE);

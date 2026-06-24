@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { Prisma, type Prisma as PrismaTypes } from "@prisma/client";
 import { ZodError } from "zod";
 import type { Session } from "next-auth";
 
@@ -61,17 +62,7 @@ export const ADMIN_ONLY: UserRole[] = ["ADMIN"];
 
 // ── Core wrapper ──────────────────────────────────────────────────────────────
 
-/**
- * Wraps a route handler with authentication, RBAC, and centralised error handling.
- *
- * @param handler      — the actual route logic
- * @param allowedRoles — if provided, only these roles may call this handler;
- *                       VIEWER is always read-only regardless
- */
-export function withAuth(
-  handler: AuthenticatedHandler,
-  allowedRoles?: UserRole[]
-) {
+export function withAuth(handler: AuthenticatedHandler, allowedRoles?: UserRole[]) {
   return async (req: NextRequest, ctx: RouteContext = {}) => {
     try {
       const session = await getServerSession(authOptions);
@@ -82,7 +73,6 @@ export function withAuth(
 
       const role = (session.user as any).role as UserRole;
 
-      // Viewers are permanently read-only
       if (role === "VIEWER" && req.method !== "GET") {
         return NextResponse.json(
           { error: "Forbidden: your role has read-only access" },
@@ -90,7 +80,6 @@ export function withAuth(
         );
       }
 
-      // Route-level role check
       if (allowedRoles && !allowedRoles.includes(role)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
@@ -102,15 +91,76 @@ export function withAuth(
   };
 }
 
+// ── Audit logging ─────────────────────────────────────────────────────────────
+
+type AuditAction = "CREATE" | "UPDATE" | "DELETE";
+
+export function auditLog(
+  userId: string,
+  action: AuditAction,
+  entityType: string,
+  entityId: string,
+  metadata?: Record<string, unknown>
+): void {
+  // Fire-and-forget — never block or crash the request
+  prisma.auditLog
+    .create({ data: { userId, action, entityType, entityId, metadata: (metadata ?? Prisma.DbNull) as any } })
+    .catch((err) => console.error("[Audit]", err));
+}
+
+// ── Cache control ─────────────────────────────────────────────────────────────
+
+/** Applies no-store cache headers to prevent sensitive data being cached. */
+export function noStore(res: NextResponse): NextResponse {
+  res.headers.set("Cache-Control", "no-store, max-age=0");
+  res.headers.set("Pragma", "no-cache");
+  return res;
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+
+export interface PaginationParams {
+  page: number;
+  pageSize: number;
+  skip: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
+}
+
+export function parsePagination(searchParams: URLSearchParams): PaginationParams {
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
+  const pageSize = Math.min(
+    100,
+    Math.max(1, parseInt(searchParams.get("pageSize") ?? "20", 10) || 20)
+  );
+  return { page, pageSize, skip: (page - 1) * pageSize };
+}
+
+export function paginated<T>(
+  data: T[],
+  total: number,
+  { page, pageSize }: PaginationParams
+): PaginatedResponse<T> {
+  return {
+    data,
+    meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
+  };
+}
+
 // ── Centralised error handler ─────────────────────────────────────────────────
 
 export function handleApiError(error: unknown): NextResponse {
   if (error instanceof ZodError) {
     return NextResponse.json(
-      {
-        error: "Validation failed",
-        details: error.flatten().fieldErrors,
-      },
+      { error: "Validation failed", details: error.flatten().fieldErrors },
       { status: 400 }
     );
   }
@@ -125,10 +175,7 @@ export function handleApiError(error: unknown): NextResponse {
       case "P2025":
         return NextResponse.json({ error: "Record not found" }, { status: 404 });
       case "P2003":
-        return NextResponse.json(
-          { error: "Related record not found" },
-          { status: 422 }
-        );
+        return NextResponse.json({ error: "Related record not found" }, { status: 422 });
       case "P2014":
         return NextResponse.json(
           { error: "Cannot delete: record is referenced by other records" },

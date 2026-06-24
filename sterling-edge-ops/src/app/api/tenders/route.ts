@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, OPS_READ, OPS_WRITE } from "@/lib/api-utils";
+import {
+  withAuth, OPS_READ, OPS_WRITE, auditLog, noStore,
+  parsePagination, paginated,
+} from "@/lib/api-utils";
 import { createTenderSchema } from "@/lib/validations";
 
 export const GET = withAuth(async (req: NextRequest) => {
@@ -9,33 +12,41 @@ export const GET = withAuth(async (req: NextRequest) => {
   const stage = searchParams.get("stage") ?? "";
   const decision = searchParams.get("decision") ?? "";
   const eligibility = searchParams.get("eligibility") ?? "";
+  const pagination = parsePagination(searchParams);
 
-  const tenders = await prisma.tender.findMany({
-    where: {
-      AND: [
-        search ? {
-          OR: [
-            { tenderName: { contains: search, mode: "insensitive" } },
-            { procuringEntity: { contains: search, mode: "insensitive" } },
-            { tenderNumber: { contains: search, mode: "insensitive" } },
-          ],
-        } : {},
-        stage ? { stage: stage as any } : {},
-        decision ? { bidDecision: decision as any } : {},
-        eligibility ? { eligibility: eligibility as any } : {},
-      ],
-    },
-    include: {
-      client: { select: { name: true } },
-      _count: { select: { tasks: true, documents: true } },
-    },
-    orderBy: [{ deadline: "asc" }],
-  });
+  const where = {
+    AND: [
+      search ? {
+        OR: [
+          { tenderName: { contains: search, mode: "insensitive" as const } },
+          { procuringEntity: { contains: search, mode: "insensitive" as const } },
+          { tenderNumber: { contains: search, mode: "insensitive" as const } },
+        ],
+      } : {},
+      stage ? { stage: stage as any } : {},
+      decision ? { bidDecision: decision as any } : {},
+      eligibility ? { eligibility: eligibility as any } : {},
+    ],
+  };
 
-  return NextResponse.json(tenders);
+  const [tenders, total] = await Promise.all([
+    prisma.tender.findMany({
+      where,
+      include: {
+        client: { select: { name: true } },
+        _count: { select: { tasks: true, documents: true } },
+      },
+      orderBy: [{ deadline: "asc" }],
+      skip: pagination.skip,
+      take: pagination.pageSize,
+    }),
+    prisma.tender.count({ where }),
+  ]);
+
+  return noStore(NextResponse.json(paginated(tenders, total, pagination)));
 }, OPS_READ);
 
-export const POST = withAuth(async (req: NextRequest) => {
+export const POST = withAuth(async (req: NextRequest, session) => {
   const body = createTenderSchema.parse(await req.json());
 
   const tender = await prisma.tender.create({
@@ -70,5 +81,6 @@ export const POST = withAuth(async (req: NextRequest) => {
     },
   });
 
+  auditLog(session.user.id, "CREATE", "tender", tender.id, { tenderName: tender.tenderName });
   return NextResponse.json(tender, { status: 201 });
 }, OPS_WRITE);

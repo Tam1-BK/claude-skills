@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, CONTRACTS_READ, CONTRACTS_WRITE } from "@/lib/api-utils";
+import { withAuth, CONTRACTS_READ, CONTRACTS_WRITE, auditLog, noStore } from "@/lib/api-utils";
 import { updateContractSchema } from "@/lib/validations";
 
 export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
@@ -25,10 +25,10 @@ export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
   });
 
   if (!contract) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(contract);
+  return noStore(NextResponse.json(contract));
 }, CONTRACTS_READ);
 
-export const PATCH = withAuth(async (req: NextRequest, _session, ctx) => {
+export const PATCH = withAuth(async (req: NextRequest, session, ctx) => {
   const { id } = ctx.params!;
   const body = updateContractSchema.parse(await req.json());
 
@@ -38,10 +38,7 @@ export const PATCH = withAuth(async (req: NextRequest, _session, ctx) => {
   if (body.supplierPaymentDate) data.supplierPaymentDate = new Date(body.supplierPaymentDate);
   if (body.contractValue != null) data.contractValue = Number(body.contractValue);
 
-  const contract = await prisma.contract.update({
-    where: { id },
-    data: data as any,
-  });
-
+  const contract = await prisma.contract.update({ where: { id }, data: data as any });
+  auditLog(session.user.id, "UPDATE", "contract", id);
   return NextResponse.json(contract);
 }, CONTRACTS_WRITE);

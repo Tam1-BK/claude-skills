@@ -444,6 +444,22 @@ model Note {
   @@map("notes")
 }
 
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
 // ─── Document Vault ──────────────────────────────────────────────────────────
 
 enum DocumentType {
