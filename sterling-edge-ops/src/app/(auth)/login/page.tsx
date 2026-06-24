@@ -95,12 +95,14 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 p-3 bg-slate-50 rounded text-xs text-slate-500 space-y-1">
-            <div className="font-medium text-slate-600 mb-2">Demo credentials:</div>
-            <div>Admin: <span className="font-mono">admin@sterlingedge.co.ke / Admin@2024</span></div>
-            <div>Director: <span className="font-mono">director@sterlingedge.co.ke / User@2024</span></div>
-            <div>Procurement: <span className="font-mono">procurement@sterlingedge.co.ke / User@2024</span></div>
-          </div>
+          {process.env.NODE_ENV !== "production" && (
+            <div className="mt-6 p-3 bg-slate-50 rounded text-xs text-slate-500 space-y-1">
+              <div className="font-medium text-slate-600 mb-2">Demo credentials:</div>
+              <div>Admin: <span className="font-mono">admin@sterlingedge.co.ke / Admin@2024</span></div>
+              <div>Director: <span className="font-mono">director@sterlingedge.co.ke / User@2024</span></div>
+              <div>Procurement: <span className="font-mono">procurement@sterlingedge.co.ke / User@2024</span></div>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-slate-500 text-xs mt-6">

@@ -52,8 +52,8 @@ docker compose up -d
 # View app logs
 docker compose logs -f app
 
-# Open Prisma Studio against the running DB
-DATABASE_URL=postgresql://sterling:sterling_secure_2024@localhost:5432/sterling_edge_ops npx prisma studio
+# Open Prisma Studio against the running DB (copy DB_PASSWORD from your .env)
+DATABASE_URL=postgresql://sterling:<DB_PASSWORD>@localhost:5432/sterling_edge_ops npx prisma studio
 ```
 
 ---
