@@ -2,6 +2,8 @@
 
 A full-stack procurement and CRM management system for **Sterling Edge Ltd** — a Kenya-based company managing AGPO tenders, supply contracts, government procurement, and Exim trading.
 
+**Version:** RC1 | **Status:** Production-Ready | **Stack:** Next.js 14 · TypeScript · PostgreSQL · Prisma · NextAuth.js
+
 ---
 
 ## What this system does
@@ -54,7 +56,7 @@ Each tender is scored across 9 weighted factors producing a 0–100 score:
 
 ---
 
-## User Roles
+## User Roles (RBAC)
 
 | Role | Access |
 |------|--------|
@@ -63,6 +65,8 @@ Each tender is scored across 9 weighted factors producing a 0–100 score:
 | Procurement Officer | Tenders, suppliers, contracts, tasks, documents |
 | Finance Officer | Finance, contracts, payments, documents |
 | Viewer | Read-only across all modules |
+
+Role enforcement is layered: Next.js middleware (edge), `withAuth()` wrapper (per-route), and response-level checks.
 
 ---
 
@@ -75,9 +79,52 @@ Each tender is scored across 9 weighted factors producing a 0–100 score:
 | Styling | Tailwind CSS + Radix UI |
 | Database | PostgreSQL |
 | ORM | Prisma |
-| Auth | NextAuth.js (JWT) |
+| Auth | NextAuth.js (JWT, sameSite=strict cookies) |
+| Validation | Zod (all API inputs + env vars at startup) |
+| Rate Limiting | Upstash Redis (in-memory fallback for dev) |
 | Icons | Lucide React |
 | Charts | Recharts |
+| Testing | Vitest (13 RBAC integration tests) |
+
+---
+
+## Security Architecture
+
+- **Authentication:** NextAuth.js JWT with `sameSite: strict` cookies and `secure: true` in production
+- **RBAC:** Role constants enforced at the edge (middleware) and per-route (`withAuth()` wrapper)
+- **CSRF:** Origin header checked against Host on all mutating requests
+- **Rate Limiting:** Distributed via Upstash Redis (5 login/15 min, 120 API/min per IP)
+- **Input Validation:** Zod schemas on all POST/PATCH endpoints
+- **Error Handling:** Centralised Prisma error mapping, no raw exceptions exposed to clients
+- **Audit Logging:** Fire-and-forget `AuditLog` writes on all CREATE/UPDATE/DELETE operations
+- **Cache Headers:** `Cache-Control: no-store` on all sensitive GET responses
+- **Security Headers:** HSTS, X-Frame-Options, nosniff, CSP, Referrer-Policy, Permissions-Policy
+- **Env Validation:** Startup check via Zod — app throws before accepting traffic if config is invalid
+
+---
+
+## API Routes
+
+| Route | Methods | Auth |
+|-------|---------|------|
+| `/api/dashboard` | GET | All roles |
+| `/api/crm` | GET (paginated), POST | OPS_READ / OPS_WRITE |
+| `/api/crm/[id]` | GET, PATCH, DELETE | OPS_READ / OPS_WRITE |
+| `/api/contacts` | GET, POST | OPS_READ / OPS_WRITE |
+| `/api/contacts/[id]` | GET, PATCH, DELETE | OPS_READ / OPS_WRITE |
+| `/api/tenders` | GET (paginated), POST | OPS_READ / OPS_WRITE |
+| `/api/tenders/[id]` | GET, PATCH, DELETE | OPS_READ / OPS_WRITE |
+| `/api/suppliers` | GET (paginated), POST | OPS_READ / OPS_WRITE |
+| `/api/suppliers/[id]` | GET, PATCH, DELETE | OPS_READ / OPS_WRITE |
+| `/api/contracts` | GET (paginated), POST | CONTRACTS_READ / CONTRACTS_WRITE |
+| `/api/contracts/[id]` | GET, PATCH | CONTRACTS_READ / CONTRACTS_WRITE |
+| `/api/finance` | GET | FINANCE_READ |
+| `/api/tasks` | GET (paginated), POST | ALL_ROLES / OPS_WRITE |
+| `/api/tasks/[id]` | PATCH, DELETE | OPS_WRITE |
+| `/api/documents` | GET (paginated), POST | DOCS_READ / DOCS_WRITE |
+| `/api/documents/[id]` | GET, PATCH, DELETE | DOCS_READ / DOCS_WRITE |
+
+All list endpoints support `?page=1&pageSize=20` pagination, returning `{ data, meta: { total, page, pageSize, totalPages } }`.
 
 ---
 
@@ -86,38 +133,48 @@ Each tender is scored across 9 weighted factors producing a 0–100 score:
 ```
 sterling-edge-ops/
 ├── prisma/
-│   ├── schema.prisma          # 12 models, all enums
+│   ├── schema.prisma          # 13 models, all enums, AuditLog
 │   ├── seed.ts                # Demo data (Kenya-focused)
 │   └── seed-if-empty.ts       # Idempotent seed runner for CI/CD
 ├── src/
+│   ├── __tests__/
+│   │   └── rbac.test.ts       # 13 RBAC integration tests (Vitest)
 │   ├── app/
+│   │   ├── error.tsx          # Global React error boundary
+│   │   ├── not-found.tsx      # 404 page
 │   │   ├── (auth)/login/      # Login page
-│   │   ├── (dashboard)/       # Protected app routes
-│   │   │   ├── page.tsx       # Dashboard
-│   │   │   ├── crm/
-│   │   │   ├── tenders/
-│   │   │   ├── suppliers/
-│   │   │   ├── contracts/
-│   │   │   ├── finance/
-│   │   │   ├── tasks/
-│   │   │   ├── documents/
-│   │   │   └── settings/
-│   │   └── api/               # REST API routes
+│   │   └── (dashboard)/       # Protected app routes
+│   │       ├── error.tsx      # Dashboard-scoped error boundary
+│   │       ├── page.tsx       # Dashboard
+│   │       ├── crm/
+│   │       ├── tenders/
+│   │       ├── suppliers/
+│   │       ├── contracts/
+│   │       ├── finance/
+│   │       ├── tasks/
+│   │       ├── documents/
+│   │       └── settings/
+│   │   └── api/               # REST API — 16 route files
 │   ├── components/            # UI components per module
 │   ├── lib/
-│   │   ├── auth.ts            # NextAuth config
+│   │   ├── api-utils.ts       # withAuth(), RBAC constants, auditLog(), noStore(), pagination
+│   │   ├── auth.ts            # NextAuth config (strict cookies, Zod validation, rate limit)
+│   │   ├── env.ts             # Zod env validation at startup
 │   │   ├── prisma.ts          # Prisma client singleton
-│   │   └── utils.ts           # formatCurrency, calcBidScore, etc.
-│   └── types/
-│       └── index.ts
+│   │   ├── rate-limit.ts      # Upstash Redis + in-memory fallback
+│   │   ├── utils.ts           # formatCurrency, calcBidScore, etc.
+│   │   └── validations.ts     # Zod schemas for all 7 entity types
+│   └── middleware.ts          # Edge auth, CSRF check, role enforcement
 ├── scripts/
 │   └── docker-entrypoint.sh   # DB wait → schema push → seed → start
 ├── .env.example               # Local dev environment template
-├── .env.production.example    # Production environment template
+├── .env.production.example    # Production environment template (with Upstash)
 ├── .env.docker                # Docker Compose environment template
 ├── vercel.json                # Vercel build configuration
+├── next.config.mjs            # Security headers, CSP, external packages
 ├── Dockerfile                 # Multi-stage production image
 ├── docker-compose.yml         # Self-hosted stack (app + postgres)
+├── vitest.config.ts           # Vitest test configuration
 └── DEPLOY.md                  # Full deployment guide
 ```
 
@@ -158,6 +215,7 @@ npm run db:reset      # Full reset: drop, repush, reseed
 npm run db:studio     # Open Prisma Studio (visual DB browser)
 npm run lint          # Run ESLint
 npm run build         # Production build
+npm test              # Run RBAC integration tests (Vitest)
 ```
 
 ---
@@ -186,7 +244,7 @@ The seed loads a complete Kenya-focused dataset for testing all modules:
 | Procurement Officer | procurement@sterlingedge.co.ke | User@2024 |
 | Finance Officer | finance@sterlingedge.co.ke | User@2024 |
 
-> **Before going live:** change these passwords and set `NEXTAUTH_SECRET` to a strong random value.
+> **Before going live:** change these passwords via the app and rotate `NEXTAUTH_SECRET`.
 
 ---
 
@@ -200,13 +258,19 @@ The seed loads a complete Kenya-focused dataset for testing all modules:
 
 ---
 
+## Deployment
+
+See **DEPLOY.md** for full instructions covering Vercel + Neon, Docker Compose, Railway, Render, and DigitalOcean.
+
+---
+
 ## Suggested Next Phase
 
 ### Phase 2 (High Priority)
 1. File uploads — actual document storage (S3 or Cloudflare R2)
-2. Client detail page — full profile with timeline, notes, linked records
-3. Tender detail page — submission checklist, document tracker, addenda log
-4. Contract detail page — payment schedule, milestone tracker
+2. User management UI — `/settings/users` for admins to create/deactivate accounts
+3. Audit log viewer — `/settings/audit` page showing all CREATE/UPDATE/DELETE events
+4. Password reset flow — forgot-password endpoint + email integration
 5. Email/SMS notifications — deadline alerts via Africa's Talking
 
 ### Phase 3 (Growth)
@@ -215,9 +279,3 @@ The seed loads a complete Kenya-focused dataset for testing all modules:
 8. Supplier portal — submit quotes directly
 9. IFMIS / eProcurement integration — auto-import public tenders
 10. 90-day cash flow projection from active contracts
-
----
-
-## Deployment
-
-See **DEPLOY.md** for full instructions covering Vercel + Neon, Docker Compose, Railway, Render, and DigitalOcean.

@@ -21,6 +21,30 @@ All deployment methods require these three variables. Set them **before** deploy
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `NEXTAUTH_SECRET` | Yes | Random 32-byte secret for JWT signing |
 | `NEXTAUTH_URL` | Yes | Full public URL of your deployed app |
+| `UPSTASH_REDIS_REST_URL` | No | Upstash Redis REST URL (distributed rate limiting) |
+| `UPSTASH_REDIS_REST_TOKEN` | No | Upstash Redis REST token |
+
+> **Rate limiting:** When `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are absent, the app falls back to per-process in-memory rate limiting. This is safe for single-instance deployments but will not share limits across multiple Vercel serverless instances. For production, add Upstash.
+
+### Optional: Upstash Redis (Distributed Rate Limiting)
+
+Upstash provides a serverless Redis that works on Vercel's edge and serverless functions.
+
+1. Sign up at [upstash.com](https://upstash.com)
+2. Create a new **Redis** database → choose the region closest to your deployment
+3. Go to **REST API** tab and copy the **REST URL** and **REST Token**
+4. Add them as environment variables in your deployment:
+
+```
+UPSTASH_REDIS_REST_URL=https://your-database.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your-token-here
+```
+
+Rate limits enforced:
+- **Login endpoint:** 5 attempts per IP per 15 minutes (sliding window)
+- **API endpoints:** 120 requests per IP per minute (sliding window)
+
+When Upstash is configured, limits are shared across all serverless instances. Without it, each instance maintains its own in-memory counter (safe for single-server deployments).
 
 ### Generating NEXTAUTH_SECRET
 
