@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, OPS_READ, OPS_WRITE, auditLog, noStore } from "@/lib/api-utils";
+import { withAuth, ALL_ROLES, OPS_WRITE, auditLog, noStore } from "@/lib/api-utils";
 import { updateTaskSchema } from "@/lib/validations";
 
 export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
@@ -20,7 +20,7 @@ export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
 
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return noStore(NextResponse.json(task));
-}, OPS_READ);
+}, ALL_ROLES);
 
 export const PATCH = withAuth(async (req: NextRequest, session, ctx) => {
   const { id } = ctx.params!;
