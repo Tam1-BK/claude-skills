@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withAuth, ALL_ROLES, OPS_WRITE } from "@/lib/api-utils";
+import { createTaskSchema } from "@/lib/validations";
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") ?? "";
   const priority = searchParams.get("priority") ?? "";
@@ -31,31 +28,27 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json(tasks);
-}
+}, ALL_ROLES);
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json();
-  const userId = (session.user as any).id;
+export const POST = withAuth(async (req: NextRequest, session) => {
+  const body = createTaskSchema.parse(await req.json());
 
   const task = await prisma.task.create({
     data: {
       title: body.title,
-      description: body.description,
+      description: body.description ?? null,
       status: body.status ?? "TODO",
       priority: body.priority ?? "MEDIUM",
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
-      assigneeId: body.assigneeId || null,
-      creatorId: userId,
-      clientId: body.clientId || null,
-      tenderId: body.tenderId || null,
-      contractId: body.contractId || null,
-      supplierId: body.supplierId || null,
-      notes: body.notes,
+      assigneeId: body.assigneeId ?? null,
+      creatorId: session.user.id,
+      clientId: body.clientId ?? null,
+      tenderId: body.tenderId ?? null,
+      contractId: body.contractId ?? null,
+      supplierId: body.supplierId ?? null,
+      notes: body.notes ?? null,
     },
   });
 
   return NextResponse.json(task, { status: 201 });
-}
+}, OPS_WRITE);

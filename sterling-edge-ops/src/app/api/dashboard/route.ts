@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withAuth, ALL_ROLES } from "@/lib/api-utils";
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayEnd = new Date(today);
@@ -28,25 +24,15 @@ export async function GET() {
     urgentTenders,
     activeContractList,
   ] = await Promise.all([
-    prisma.tender.count({
-      where: {
-        stage: {
-          notIn: ["WON", "LOST", "DECLINED"],
-        },
-      },
-    }),
+    prisma.tender.count({ where: { stage: { notIn: ["WON", "LOST", "DECLINED"] } } }),
     prisma.tender.count({
       where: {
         deadline: { lte: sevenDays, gte: today },
         stage: { notIn: ["SUBMITTED", "AWAITING_AWARD", "WON", "LOST", "DECLINED"] },
       },
     }),
-    prisma.contract.count({
-      where: { status: { notIn: ["PAID", "CLOSED"] } },
-    }),
-    prisma.payment.count({
-      where: { status: { in: ["PENDING", "OVERDUE"] } },
-    }),
+    prisma.contract.count({ where: { status: { notIn: ["PAID", "CLOSED"] } } }),
+    prisma.payment.count({ where: { status: { in: ["PENDING", "OVERDUE"] } } }),
     prisma.client.aggregate({
       _sum: { opportunityValue: true },
       where: { pipelineStage: { notIn: ["WON", "LOST", "DORMANT"] } },
@@ -58,10 +44,7 @@ export async function GET() {
       },
     }),
     prisma.task.count({
-      where: {
-        dueDate: { lt: today },
-        status: { notIn: ["DONE", "CANCELLED"] },
-      },
+      where: { dueDate: { lt: today }, status: { notIn: ["DONE", "CANCELLED"] } },
     }),
     prisma.contract.count({ where: { status: "PAID" } }),
     prisma.contract.aggregate({
@@ -72,7 +55,11 @@ export async function GET() {
       where: { status: { notIn: ["DONE", "CANCELLED"] } },
       orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
       take: 8,
-      include: { assignee: { select: { name: true } }, client: { select: { name: true } }, tender: { select: { tenderName: true } } },
+      include: {
+        assignee: { select: { name: true } },
+        client: { select: { name: true } },
+        tender: { select: { tenderName: true } },
+      },
     }),
     prisma.tender.findMany({
       where: {
@@ -112,4 +99,4 @@ export async function GET() {
     urgentTenders,
     activeContractList,
   });
-}
+}, ALL_ROLES);

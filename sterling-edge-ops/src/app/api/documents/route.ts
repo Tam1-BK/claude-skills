@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withAuth, DOCS_READ, DOCS_WRITE } from "@/lib/api-utils";
+import { createDocumentSchema } from "@/lib/validations";
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type") ?? "";
   const search = searchParams.get("search") ?? "";
@@ -28,14 +25,10 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json(documents);
-}
+}, DOCS_READ);
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json();
-  const userId = (session.user as any).id;
+export const POST = withAuth(async (req: NextRequest, session) => {
+  const body = createDocumentSchema.parse(await req.json());
 
   const document = await prisma.document.create({
     data: {
@@ -44,17 +37,17 @@ export async function POST(req: NextRequest) {
       fileName: body.fileName ?? body.name,
       fileSize: body.fileSize ?? null,
       mimeType: body.mimeType ?? null,
-      url: body.url ?? null,
+      url: body.url || null,
       expiryDate: body.expiryDate ? new Date(body.expiryDate) : null,
       isVerified: body.isVerified ?? false,
-      notes: body.notes,
-      clientId: body.clientId || null,
-      tenderId: body.tenderId || null,
-      supplierId: body.supplierId || null,
-      contractId: body.contractId || null,
-      uploadedById: userId,
+      notes: body.notes ?? null,
+      clientId: body.clientId ?? null,
+      tenderId: body.tenderId ?? null,
+      supplierId: body.supplierId ?? null,
+      contractId: body.contractId ?? null,
+      uploadedById: session.user.id,
     },
   });
 
   return NextResponse.json(document, { status: 201 });
-}
+}, DOCS_WRITE);

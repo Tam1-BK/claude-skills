@@ -1,45 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withAuth, CONTRACTS_READ, CONTRACTS_WRITE } from "@/lib/api-utils";
+import { updateContractSchema } from "@/lib/validations";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
+  const { id } = ctx.params!;
 
   const contract = await prisma.contract.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       client: true,
       supplier: true,
       documents: { orderBy: { createdAt: "desc" } },
-      tasks: { where: { status: { notIn: ["DONE", "CANCELLED"] } }, include: { assignee: { select: { name: true } } } },
-      notes_rel: { orderBy: { createdAt: "desc" }, include: { author: { select: { name: true } } } },
+      tasks: {
+        where: { status: { notIn: ["DONE", "CANCELLED"] } },
+        include: { assignee: { select: { name: true } } },
+      },
+      notes_rel: {
+        orderBy: { createdAt: "desc" },
+        include: { author: { select: { name: true } } },
+      },
       payments: { orderBy: { dueDate: "asc" } },
     },
   });
 
   if (!contract) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(contract);
-}
+}, CONTRACTS_READ);
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const PATCH = withAuth(async (req: NextRequest, _session, ctx) => {
+  const { id } = ctx.params!;
+  const body = updateContractSchema.parse(await req.json());
 
-  const body = await req.json();
+  const data: Record<string, unknown> = { ...body };
+  if (body.deliveryDeadline) data.deliveryDeadline = new Date(body.deliveryDeadline);
+  if (body.expectedPaymentDate) data.expectedPaymentDate = new Date(body.expectedPaymentDate);
+  if (body.supplierPaymentDate) data.supplierPaymentDate = new Date(body.supplierPaymentDate);
+  if (body.contractValue != null) data.contractValue = Number(body.contractValue);
 
   const contract = await prisma.contract.update({
-    where: { id: params.id },
-    data: {
-      ...body,
-      deliveryDeadline: body.deliveryDeadline ? new Date(body.deliveryDeadline) : undefined,
-      expectedPaymentDate: body.expectedPaymentDate ? new Date(body.expectedPaymentDate) : undefined,
-      supplierPaymentDate: body.supplierPaymentDate ? new Date(body.supplierPaymentDate) : undefined,
-      contractValue: body.contractValue ? parseFloat(body.contractValue) : undefined,
-      costOfGoods: body.costOfGoods ? parseFloat(body.costOfGoods) : undefined,
-    },
+    where: { id },
+    data: data as any,
   });
 
   return NextResponse.json(contract);
-}
+}, CONTRACTS_WRITE);

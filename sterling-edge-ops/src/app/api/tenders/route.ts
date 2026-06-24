@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withAuth, OPS_READ, OPS_WRITE } from "@/lib/api-utils";
+import { createTenderSchema } from "@/lib/validations";
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") ?? "";
   const stage = searchParams.get("stage") ?? "";
@@ -36,46 +33,42 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json(tenders);
-}
+}, OPS_READ);
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json();
+export const POST = withAuth(async (req: NextRequest) => {
+  const body = createTenderSchema.parse(await req.json());
 
   const tender = await prisma.tender.create({
     data: {
       tenderName: body.tenderName,
-      tenderNumber: body.tenderNumber,
+      tenderNumber: body.tenderNumber ?? null,
       procuringEntity: body.procuringEntity,
-      clientId: body.clientId || null,
-      category: body.category,
+      clientId: body.clientId ?? null,
+      category: body.category ?? "",
       eligibility: body.eligibility ?? "OPEN",
       deadline: new Date(body.deadline),
       bidBondRequired: body.bidBondRequired ?? false,
-      bidBondAmount: body.bidBondAmount ? parseFloat(body.bidBondAmount) : null,
-      estimatedValue: body.estimatedValue ? parseFloat(body.estimatedValue) : null,
+      bidBondAmount: body.bidBondAmount ?? null,
+      estimatedValue: body.estimatedValue ?? null,
       stage: body.stage ?? "IDENTIFIED",
       bidDecision: body.bidDecision ?? "PENDING",
       mandatoryDocuments: body.mandatoryDocuments ?? [],
       requiredLicenses: body.requiredLicenses ?? [],
-      technicalRequirements: body.technicalRequirements,
-      financialRequirements: body.financialRequirements,
+      technicalRequirements: body.technicalRequirements ?? null,
+      financialRequirements: body.financialRequirements ?? null,
       priority: body.priority ?? "MEDIUM",
-      notes: body.notes,
-      // Bid scores
-      eligibilityScore: body.eligibilityScore ? parseInt(body.eligibilityScore) : null,
-      capitalScore: body.capitalScore ? parseInt(body.capitalScore) : null,
-      deadlineScore: body.deadlineScore ? parseInt(body.deadlineScore) : null,
-      documentScore: body.documentScore ? parseInt(body.documentScore) : null,
-      supplierScore: body.supplierScore ? parseInt(body.supplierScore) : null,
-      marginScore: body.marginScore ? parseInt(body.marginScore) : null,
-      relationshipScore: body.relationshipScore ? parseInt(body.relationshipScore) : null,
-      licenseScore: body.licenseScore ? parseInt(body.licenseScore) : null,
-      paymentRiskScore: body.paymentRiskScore ? parseInt(body.paymentRiskScore) : null,
+      notes: body.notes ?? null,
+      eligibilityScore: body.eligibilityScore ?? null,
+      capitalScore: body.capitalScore ?? null,
+      deadlineScore: body.deadlineScore ?? null,
+      documentScore: body.documentScore ?? null,
+      supplierScore: body.supplierScore ?? null,
+      marginScore: body.marginScore ?? null,
+      relationshipScore: body.relationshipScore ?? null,
+      licenseScore: body.licenseScore ?? null,
+      paymentRiskScore: body.paymentRiskScore ?? null,
     },
   });
 
   return NextResponse.json(tender, { status: 201 });
-}
+}, OPS_WRITE);

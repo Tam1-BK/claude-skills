@@ -8,7 +8,7 @@ done
 echo "PostgreSQL is ready."
 
 echo "Pushing database schema..."
-npx prisma db push --skip-generate --accept-data-loss
+npx prisma db push --skip-generate
 
 echo "Checking seed status..."
 USER_COUNT=$(node -e "

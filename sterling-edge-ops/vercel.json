@@ -1,5 +1,5 @@
 {
   "framework": "nextjs",
   "installCommand": "npm ci",
-  "buildCommand": "npx prisma db push --accept-data-loss && npx tsx prisma/seed-if-empty.ts && next build"
+  "buildCommand": "npx prisma db push && npx tsx prisma/seed-if-empty.ts && next build"
 }
