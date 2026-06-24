@@ -30,8 +30,8 @@ export function SuppliersContent() {
     if (search) params.set("search", search);
     if (reliabilityFilter !== "all") params.set("reliability", reliabilityFilter);
     const res = await fetch(`/api/suppliers?${params}`);
-    const data = await res.json();
-    setSuppliers(data);
+    const json = await res.json();
+    setSuppliers(json.data ?? []);
     setLoading(false);
   }, [search, reliabilityFilter]);
 

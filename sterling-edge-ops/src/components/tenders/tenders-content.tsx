@@ -33,8 +33,8 @@ export function TendersContent() {
     if (decisionFilter !== "all") params.set("decision", decisionFilter);
     if (eligibilityFilter !== "all") params.set("eligibility", eligibilityFilter);
     const res = await fetch(`/api/tenders?${params}`);
-    const data = await res.json();
-    setTenders(data);
+    const json = await res.json();
+    setTenders(json.data ?? []);
     setLoading(false);
   }, [search, stageFilter, decisionFilter, eligibilityFilter]);
 

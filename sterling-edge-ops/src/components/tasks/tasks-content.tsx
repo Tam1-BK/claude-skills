@@ -30,8 +30,8 @@ export function TasksContent() {
     if (priorityFilter !== "all") params.set("priority", priorityFilter);
     if (showDone) params.set("status", "DONE");
     const res = await fetch(`/api/tasks?${params}`);
-    const data = await res.json();
-    setTasks(data);
+    const json = await res.json();
+    setTasks(json.data ?? []);
     setLoading(false);
   }, [priorityFilter, showDone]);
 

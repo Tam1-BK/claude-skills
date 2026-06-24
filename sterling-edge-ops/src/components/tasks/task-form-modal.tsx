@@ -34,7 +34,7 @@ export function TaskFormModal({ open, onClose, onSaved, task }: TaskFormModalPro
 
   useEffect(() => {
     if (open) {
-      fetch("/api/crm").then(r => r.json()).then(setClients);
+      fetch("/api/crm").then(r => r.json()).then(d => setClients(d.data ?? []));
       // Fetch users from a simple endpoint
       fetch("/api/auth/session").then(r => r.json()).then(data => {
         if (data?.user) setUsers([data.user]);

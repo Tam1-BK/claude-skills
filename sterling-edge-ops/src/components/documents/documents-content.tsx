@@ -47,8 +47,8 @@ export function DocumentsContent() {
     if (search) params.set("search", search);
     if (typeFilter !== "all") params.set("type", typeFilter);
     const res = await fetch(`/api/documents?${params}`);
-    const data = await res.json();
-    setDocuments(data);
+    const json = await res.json();
+    setDocuments(json.data ?? []);
     setLoading(false);
   }, [search, typeFilter]);
 

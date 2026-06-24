@@ -25,8 +25,8 @@ export function ContractsContent() {
     if (search) params.set("search", search);
     if (statusFilter !== "all") params.set("status", statusFilter);
     const res = await fetch(`/api/contracts?${params}`);
-    const data = await res.json();
-    setContracts(data);
+    const json = await res.json();
+    setContracts(json.data ?? []);
     setLoading(false);
   }, [search, statusFilter]);
 

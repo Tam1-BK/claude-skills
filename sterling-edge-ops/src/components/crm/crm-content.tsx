@@ -33,8 +33,8 @@ export function CRMContent() {
     if (stageFilter !== "all") params.set("stage", stageFilter);
     if (typeFilter !== "all") params.set("type", typeFilter);
     const res = await fetch(`/api/crm?${params}`);
-    const data = await res.json();
-    setClients(data);
+    const json = await res.json();
+    setClients(json.data ?? []);
     setLoading(false);
   }, [search, stageFilter, typeFilter]);
 
