@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, OPS_WRITE, auditLog } from "@/lib/api-utils";
+import { withAuth, OPS_READ, OPS_WRITE, auditLog, noStore } from "@/lib/api-utils";
 import { updateTaskSchema } from "@/lib/validations";
+
+export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
+  const { id } = ctx.params!;
+
+  const task = await prisma.task.findUnique({
+    where: { id },
+    include: {
+      assignee: { select: { id: true, name: true } },
+      creator: { select: { id: true, name: true } },
+      client: { select: { id: true, name: true } },
+      tender: { select: { id: true, tenderName: true } },
+      contract: { select: { id: true, title: true } },
+      supplier: { select: { id: true, name: true } },
+    },
+  });
+
+  if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return noStore(NextResponse.json(task));
+}, OPS_READ);
 
 export const PATCH = withAuth(async (req: NextRequest, session, ctx) => {
   const { id } = ctx.params!;

@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, CheckCircle2, Circle, Calendar, Link as LinkIcon } from "lucide-react";
+import { Plus, Search, CheckCircle2, Circle, Calendar, Link as LinkIcon, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { formatDate, getStatusColor, formatLabel, isOverdue, isDueSoon } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { TaskFormModal } from "@/components/tasks/task-form-modal";
@@ -133,9 +134,9 @@ export function TasksContent() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <div className={cn("h-2 w-2 rounded-full shrink-0 mt-1.5", PRIORITY_COLORS[task.priority])} />
-                      <span className={cn("font-medium text-sm", isDone && "line-through text-muted-foreground")}>
+                      <Link href={`/tasks/${task.id}`} className={cn("font-medium text-sm hover:text-blue-600 transition-colors", isDone && "line-through text-muted-foreground")}>
                         {task.title}
-                      </span>
+                      </Link>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {task.priority === "URGENT" && !isDone && (

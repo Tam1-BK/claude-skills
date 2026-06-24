@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Star, Phone, Mail, Package, Clock } from "lucide-react";
+import Link from "next/link";
 import { formatCurrency, getStatusColor, formatLabel } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { SupplierFormModal } from "@/components/suppliers/supplier-form-modal";
@@ -76,7 +77,7 @@ export function SuppliersContent() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {suppliers.map((supplier) => (
-            <div key={supplier.id} className="border rounded-lg bg-white p-5 hover:shadow-md transition-shadow">
+            <Link key={supplier.id} href={`/suppliers/${supplier.id}`} className="block border rounded-lg bg-white p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <div className="min-w-0">
                   <div className="font-semibold text-sm truncate">{supplier.name}</div>
@@ -139,7 +140,7 @@ export function SuppliersContent() {
                 <span className="text-muted-foreground">{supplier._count.contracts} contracts</span>
                 {supplier.county && <span className="text-muted-foreground">{supplier.county}</span>}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
