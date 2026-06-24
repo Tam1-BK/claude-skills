@@ -8,6 +8,7 @@ import { formatDate, getStatusColor, formatLabel, isOverdue, isDueSoon } from "@
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { TaskFormModal } from "@/components/tasks/task-form-modal";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { toast } from "@/components/ui/use-toast";
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -23,12 +24,14 @@ export default function TaskDetailPage() {
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [forbidden, setForbidden] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [marking, setMarking] = useState(false);
 
   async function load() {
     setLoading(true);
     const res = await fetch(`/api/tasks/${id}`);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     if (res.status === 404) { setNotFound(true); setLoading(false); return; }
     const data = await res.json();
     setTask(data);
@@ -55,6 +58,8 @@ export default function TaskDetailPage() {
       <div className="h-40 rounded bg-gray-100 animate-pulse" />
     </div>
   );
+
+  if (forbidden) return <AccessDenied />;
 
   if (notFound) return (
     <div className="p-6 text-center py-24 text-muted-foreground">

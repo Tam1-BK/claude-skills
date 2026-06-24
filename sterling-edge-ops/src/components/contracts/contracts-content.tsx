@@ -9,12 +9,14 @@ import { formatCurrency, formatDate, getStatusColor, formatLabel, isOverdue, isD
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ContractFormModal } from "@/components/contracts/contract-form-modal";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 const CONTRACT_STATUSES = ["AWARDED", "SOURCING", "PO_ISSUED", "GOODS_IN_TRANSIT", "DELIVERED", "INVOICED", "PAID", "CLOSED", "DISPUTED"];
 
 export function ContractsContent() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -25,6 +27,7 @@ export function ContractsContent() {
     if (search) params.set("search", search);
     if (statusFilter !== "all") params.set("status", statusFilter);
     const res = await fetch(`/api/contracts?${params}`);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     const json = await res.json();
     setContracts(json.data ?? []);
     setLoading(false);
@@ -34,6 +37,8 @@ export function ContractsContent() {
     const t = setTimeout(fetchContracts, 300);
     return () => clearTimeout(t);
   }, [fetchContracts]);
+
+  if (forbidden) return <AccessDenied />;
 
   const totalValue = contracts.reduce((s, c) => s + c.contractValue, 0);
   const totalMargin = contracts.reduce((s, c) => s + (c.grossMargin ?? 0), 0) / (contracts.length || 1);

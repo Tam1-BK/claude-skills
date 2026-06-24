@@ -5,14 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatDate, getStatusColor, formatLabel, isOverdue, isDueSoon } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, TrendingUp, DollarSign, ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 export function FinanceContent() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
-    fetch("/api/finance").then(r => r.json()).then(setData).finally(() => setLoading(false));
+    fetch("/api/finance").then(async (r) => {
+      if (r.status === 401 || r.status === 403) { setForbidden(true); return; }
+      const json = await r.json();
+      setData(json);
+    }).finally(() => setLoading(false));
   }, []);
+
+  if (forbidden) return <AccessDenied />;
 
   if (loading) {
     return (

@@ -8,6 +8,7 @@ import { Plus, Search, FileText, AlertTriangle, CheckCircle, Clock } from "lucid
 import { formatDate, formatLabel, isOverdue, isDueSoon } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { DocumentFormModal } from "@/components/documents/document-form-modal";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 const DOC_TYPES = [
   "COMPANY_REGISTRATION", "AGPO_CERTIFICATE", "KRA_PIN", "TAX_COMPLIANCE", "CR12",
@@ -37,6 +38,7 @@ const TYPE_ICONS: Record<string, string> = {
 export function DocumentsContent() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -47,6 +49,7 @@ export function DocumentsContent() {
     if (search) params.set("search", search);
     if (typeFilter !== "all") params.set("type", typeFilter);
     const res = await fetch(`/api/documents?${params}`);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     const json = await res.json();
     setDocuments(json.data ?? []);
     setLoading(false);
@@ -56,6 +59,8 @@ export function DocumentsContent() {
     const t = setTimeout(fetchDocuments, 300);
     return () => clearTimeout(t);
   }, [fetchDocuments]);
+
+  if (forbidden) return <AccessDenied />;
 
   // Expiry alerts
   const expiring = documents.filter(d => d.expiryDate && isDueSoon(d.expiryDate, 30) && !isOverdue(d.expiryDate));

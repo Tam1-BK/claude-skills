@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Star, Phone, Mail, Package, Clock } from "lucide-react";
 import Link from "next/link";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { formatCurrency, getStatusColor, formatLabel } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { SupplierFormModal } from "@/components/suppliers/supplier-form-modal";
@@ -21,6 +22,7 @@ const RELIABILITY_COLORS: Record<string, string> = {
 export function SuppliersContent() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [search, setSearch] = useState("");
   const [reliabilityFilter, setReliabilityFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -31,6 +33,7 @@ export function SuppliersContent() {
     if (search) params.set("search", search);
     if (reliabilityFilter !== "all") params.set("reliability", reliabilityFilter);
     const res = await fetch(`/api/suppliers?${params}`);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     const json = await res.json();
     setSuppliers(json.data ?? []);
     setLoading(false);
@@ -40,6 +43,8 @@ export function SuppliersContent() {
     const t = setTimeout(fetchSuppliers, 300);
     return () => clearTimeout(t);
   }, [fetchSuppliers]);
+
+  if (forbidden) return <AccessDenied />;
 
   return (
     <div className="p-6 space-y-5">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -14,22 +15,29 @@ import {
   FolderOpen,
   Settings,
   ChevronRight,
+  Lock,
 } from "lucide-react";
+import {
+  ALL_ROLES, OPS_READ, FINANCE_READ, CONTRACTS_READ, DOCS_READ, canAccess,
+  type UserRole,
+} from "@/lib/rbac";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/crm", label: "CRM", icon: Users },
-  { href: "/tenders", label: "Tenders", icon: FileText },
-  { href: "/suppliers", label: "Suppliers", icon: Truck },
-  { href: "/contracts", label: "Contracts", icon: ClipboardList },
-  { href: "/finance", label: "Finance", icon: DollarSign },
-  { href: "/tasks", label: "Tasks", icon: CheckSquare },
-  { href: "/documents", label: "Documents", icon: FolderOpen },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/",          label: "Dashboard", icon: LayoutDashboard, readRoles: ALL_ROLES },
+  { href: "/crm",       label: "CRM",       icon: Users,          readRoles: OPS_READ },
+  { href: "/tenders",   label: "Tenders",   icon: FileText,       readRoles: OPS_READ },
+  { href: "/suppliers", label: "Suppliers", icon: Truck,          readRoles: OPS_READ },
+  { href: "/contracts", label: "Contracts", icon: ClipboardList,  readRoles: CONTRACTS_READ },
+  { href: "/finance",   label: "Finance",   icon: DollarSign,     readRoles: FINANCE_READ },
+  { href: "/tasks",     label: "Tasks",     icon: CheckSquare,    readRoles: ALL_ROLES },
+  { href: "/documents", label: "Documents", icon: FolderOpen,     readRoles: DOCS_READ },
+  { href: "/settings",  label: "Settings",  icon: Settings,       readRoles: ALL_ROLES },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role as UserRole | undefined;
 
   return (
     <aside className="w-60 shrink-0 border-r bg-slate-900 flex flex-col h-screen sticky top-0">
@@ -49,8 +57,25 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 scrollbar-thin">
         <ul className="space-y-0.5 px-2">
-          {navItems.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon, readRoles }) => {
             const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const allowed = canAccess(role, readRoles);
+
+            if (!allowed) {
+              return (
+                <li key={href}>
+                  <span
+                    title={`Your role does not have access to ${label}`}
+                    className="flex items-center gap-3 rounded px-3 py-2.5 text-sm font-medium text-slate-600 cursor-not-allowed select-none"
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{label}</span>
+                    <Lock className="ml-auto h-3 w-3 opacity-60" />
+                  </span>
+                </li>
+              );
+            }
+
             return (
               <li key={href}>
                 <Link
@@ -74,7 +99,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-slate-700">
-        <div className="text-slate-500 text-xs">v0.1.0 MVP</div>
+        <div className="text-slate-500 text-xs">v0.1.0 RC1</div>
       </div>
     </aside>
   );

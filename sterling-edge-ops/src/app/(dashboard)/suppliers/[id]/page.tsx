@@ -8,6 +8,7 @@ import { formatCurrency, formatDate, getStatusColor, formatLabel, isOverdue } fr
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { SupplierFormModal } from "@/components/suppliers/supplier-form-modal";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 const RELIABILITY_COLORS: Record<string, string> = {
   EXCELLENT: "bg-green-100 text-green-800",
@@ -23,11 +24,13 @@ export default function SupplierDetailPage() {
   const [supplier, setSupplier] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [forbidden, setForbidden] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
   async function load() {
     setLoading(true);
     const res = await fetch(`/api/suppliers/${id}`);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     if (res.status === 404) { setNotFound(true); setLoading(false); return; }
     const data = await res.json();
     setSupplier(data);
@@ -43,6 +46,8 @@ export default function SupplierDetailPage() {
       <div className="h-64 rounded bg-gray-100 animate-pulse" />
     </div>
   );
+
+  if (forbidden) return <AccessDenied />;
 
   if (notFound) return (
     <div className="p-6 text-center py-24 text-muted-foreground">

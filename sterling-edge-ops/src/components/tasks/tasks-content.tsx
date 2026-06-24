@@ -9,6 +9,7 @@ import Link from "next/link";
 import { formatDate, getStatusColor, formatLabel, isOverdue, isDueSoon } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { TaskFormModal } from "@/components/tasks/task-form-modal";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { toast } from "@/components/ui/use-toast";
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -21,6 +22,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 export function TasksContent() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
   const [showDone, setShowDone] = useState(false);
@@ -31,6 +33,7 @@ export function TasksContent() {
     if (priorityFilter !== "all") params.set("priority", priorityFilter);
     if (showDone) params.set("status", "DONE");
     const res = await fetch(`/api/tasks?${params}`);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     const json = await res.json();
     setTasks(json.data ?? []);
     setLoading(false);
@@ -49,6 +52,8 @@ export function TasksContent() {
     toast({ title: "Task marked complete" });
     fetchTasks();
   }
+
+  if (forbidden) return <AccessDenied />;
 
   const overdue = tasks.filter(t => isOverdue(t.dueDate) && t.status !== "DONE");
   const dueToday = tasks.filter(t => {

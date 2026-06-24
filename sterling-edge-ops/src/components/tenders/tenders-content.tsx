@@ -9,6 +9,7 @@ import { formatCurrency, formatDate, getStatusColor, formatLabel, isDueSoon, isO
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { TenderFormModal } from "@/components/tenders/tender-form-modal";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 const STAGES = [
   "IDENTIFIED", "UNDER_REVIEW", "DOCUMENTS_GATHERING", "PRICING",
@@ -19,6 +20,7 @@ const STAGES = [
 export function TendersContent() {
   const [tenders, setTenders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [decisionFilter, setDecisionFilter] = useState("all");
@@ -33,6 +35,7 @@ export function TendersContent() {
     if (decisionFilter !== "all") params.set("decision", decisionFilter);
     if (eligibilityFilter !== "all") params.set("eligibility", eligibilityFilter);
     const res = await fetch(`/api/tenders?${params}`);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     const json = await res.json();
     setTenders(json.data ?? []);
     setLoading(false);
@@ -42,6 +45,8 @@ export function TendersContent() {
     const t = setTimeout(fetchTenders, 300);
     return () => clearTimeout(t);
   }, [fetchTenders]);
+
+  if (forbidden) return <AccessDenied />;
 
   const totalValue = tenders.filter(t => t.bidDecision === "PURSUE").reduce((s, t) => s + (t.estimatedValue ?? 0), 0);
   const pursuing = tenders.filter(t => t.bidDecision === "PURSUE").length;

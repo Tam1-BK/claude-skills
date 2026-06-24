@@ -9,6 +9,7 @@ import { formatCurrency, formatDate, getStatusColor, formatLabel, isDueSoon, isO
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ClientFormModal } from "@/components/crm/client-form-modal";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 const PIPELINE_STAGES = [
   "LEAD_IDENTIFIED", "CONTACT_MADE", "REQUIREMENTS_RECEIVED",
@@ -20,6 +21,7 @@ const CLIENT_TYPES = ["MINISTRY", "AGENCY", "COUNTY_GOVERNMENT", "PRIVATE_COMPAN
 export function CRMContent() {
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -33,6 +35,7 @@ export function CRMContent() {
     if (stageFilter !== "all") params.set("stage", stageFilter);
     if (typeFilter !== "all") params.set("type", typeFilter);
     const res = await fetch(`/api/crm?${params}`);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     const json = await res.json();
     setClients(json.data ?? []);
     setLoading(false);
@@ -42,6 +45,8 @@ export function CRMContent() {
     const t = setTimeout(fetchClients, 300);
     return () => clearTimeout(t);
   }, [fetchClients]);
+
+  if (forbidden) return <AccessDenied />;
 
   const totalValue = clients.reduce((s, c) => s + (c.opportunityValue ?? 0), 0);
 

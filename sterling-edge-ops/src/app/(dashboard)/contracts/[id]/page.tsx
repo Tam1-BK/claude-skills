@@ -8,6 +8,7 @@ import { formatCurrency, formatDate, getStatusColor, formatLabel, isOverdue, isD
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ContractFormModal } from "@/components/contracts/contract-form-modal";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,11 +16,13 @@ export default function ContractDetailPage() {
   const [contract, setContract] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [forbidden, setForbidden] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
   async function load() {
     setLoading(true);
     const res = await fetch(`/api/contracts/${id}`);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     if (res.status === 404) { setNotFound(true); setLoading(false); return; }
     const data = await res.json();
     setContract(data);
@@ -35,6 +38,8 @@ export default function ContractDetailPage() {
       <div className="h-64 rounded bg-gray-100 animate-pulse" />
     </div>
   );
+
+  if (forbidden) return <AccessDenied />;
 
   if (notFound) return (
     <div className="p-6 text-center py-24 text-muted-foreground">

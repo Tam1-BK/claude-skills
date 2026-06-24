@@ -283,25 +283,140 @@ Run this checklist manually after seeding data (`npm run db:seed`):
 [ ] Settings: page loads, role matrix visible
 ```
 
+---
+
+## Role-Based Access Matrix
+
+| Module | ADMIN | DIRECTOR | PROCUREMENT_OFFICER | FINANCE_OFFICER | VIEWER |
+|---|---|---|---|---|---|
+| Dashboard | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Read |
+| CRM | ✅ Full | ✅ Full | ✅ Full | 🔒 Locked | ✅ Read |
+| Tenders | ✅ Full | ✅ Full | ✅ Full | 🔒 Locked | ✅ Read |
+| Suppliers | ✅ Full | ✅ Full | ✅ Full | 🔒 Locked | ✅ Read |
+| Contracts | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Read |
+| Finance | ✅ Full | ✅ Full | 🔒 Locked | ✅ Full | 🔒 Locked |
+| Tasks | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Read |
+| Documents | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Read |
+| Settings | ✅ Read | ✅ Read | ✅ Read | ✅ Read | ✅ Read |
+
+**Locked (🔒):** Sidebar item shows disabled with lock icon. If navigated directly, API returns 403 → "Access Denied" screen shown.  
+**Read (✅ Read):** Can view all data. Write operations (add/edit/delete) return 403 on submit (VIEWER role check in `withAuth`).
+
+---
+
+## Manual QA Test Script
+
+Run this checklist manually after seeding data (`npm run db:seed`):
+
+### Setup
+```
+1. npm run dev
+2. Navigate to http://localhost:3000
+3. Confirm redirect to /login
+```
+
+### As Admin (admin@sterlingedge.co.ke / Admin@2024 in dev seed)
+
+```
+[ ] Login succeeds → redirected to dashboard
+[ ] Dashboard: KPI cards show non-zero values
+[ ] Dashboard: Recent Contracts — click a row → /contracts/[id] loads
+[ ] Dashboard: Recent Tenders — click a row → /tenders/[id] loads
+
+[ ] CRM: list loads with client cards
+[ ] CRM: click a client card → /crm/[id] loads, shows contacts/tenders/contracts
+[ ] CRM: Edit button in detail → modal opens pre-filled, save works
+[ ] CRM: Add Client button → modal opens, creates new client
+
+[ ] Tenders: list loads with rows
+[ ] Tenders: click a row → /tenders/[id] loads with bid score breakdown
+[ ] Tenders: Edit button → modal pre-filled, save works
+
+[ ] Suppliers: list loads with cards
+[ ] Suppliers: click a card → /suppliers/[id] loads with price history
+[ ] Suppliers: Edit button → modal pre-filled, save works
+
+[ ] Contracts: list loads with rows
+[ ] Contracts: click a row → /contracts/[id] loads with financial breakdown
+[ ] Contracts: Edit button → modal pre-filled, save works
+
+[ ] Finance: page loads, charts render, no empty states
+
+[ ] Tasks: list loads, priority dots visible
+[ ] Tasks: click task title → /tasks/[id] loads with linked records
+[ ] Tasks: circle button → marks done inline without navigating away
+[ ] Tasks: Mark Done button on detail page works
+
+[ ] Documents: list loads with expiry badges where applicable
+[ ] Documents: Add Document → modal with client/supplier dropdowns populated
+
+[ ] Settings: page loads, role matrix visible
+[ ] Sidebar: all 9 nav items are active links (no lock icons for Admin)
+```
+
+### As Director (director@sterlingedge.co.ke)
+
+```
+[ ] Login succeeds
+[ ] All modules accessible (same as Admin but no Admin-only APIs)
+[ ] Sidebar: no lock icons visible
+[ ] Finance page loads correctly
+```
+
+### As Procurement Officer
+
+```
+[ ] Login succeeds
+[ ] CRM, Tenders, Suppliers, Contracts, Tasks, Documents: all load correctly
+[ ] Finance: sidebar item shows LOCK icon, is not clickable
+[ ] Finance: if navigated directly (URL bar) → "Access Denied" screen shown
+[ ] Finance detail /finance: API returns 403, "Access Denied" rendered — no technical error shown
+[ ] Settings: role matrix visible
+```
+
+### As Finance Officer
+
+```
+[ ] Login succeeds
+[ ] CRM: sidebar item shows LOCK icon, is not clickable
+[ ] Tenders: sidebar item shows LOCK icon, is not clickable
+[ ] Suppliers: sidebar item shows LOCK icon, is not clickable
+[ ] CRM: if navigated directly → "Access Denied" screen shown
+[ ] Tenders: if navigated directly → "Access Denied" screen shown
+[ ] Suppliers: if navigated directly → "Access Denied" screen shown
+[ ] Finance: page loads correctly with full data
+[ ] Contracts: list and detail load correctly
+[ ] Documents: list loads correctly
+[ ] Tasks: list loads correctly
+```
+
 ### As Viewer (viewer@sterlingedge.co.ke / User@2024 in dev seed)
 
 ```
 [ ] Login succeeds
 [ ] Dashboard visible
-[ ] CRM list visible (read-only)
-[ ] Add Client button — confirm it either: (a) shows 403 error on submit, or (b) is hidden
-[ ] Tenders list visible
-[ ] Finance page: confirm FINANCE_READ check applies
-[ ] Settings: role matrix visible
+[ ] Finance: sidebar item shows LOCK icon, is not clickable
+[ ] Finance: if navigated directly → "Access Denied" screen shown
+[ ] CRM: list loads (read-only) — data visible
+[ ] CRM: Add Client button visible, but clicking Add and submitting → toast error (403 from API)
+[ ] CRM: /crm/[id] detail loads, Edit button visible, but Save → toast error (403 from API)
+[ ] Tenders: list visible
+[ ] Suppliers: list visible
+[ ] Contracts: list and detail visible (CONTRACTS_READ includes VIEWER)
+[ ] Tasks: list visible (ALL_ROLES), mark-done via circle → should fail with 403 (VIEWER cannot write)
+[ ] Documents: list visible
+[ ] Settings: role matrix visible showing Viewer is read-only
 ```
 
 ### Unauthenticated API Test
 
 ```bash
-# Should return {"error":"Unauthorized"} with 401 — NOT HTML
+# All should return {"error":"Unauthorized"} with status 401 — NOT HTML redirect
 curl -i http://localhost:3000/api/contracts
 curl -i http://localhost:3000/api/crm
 curl -i http://localhost:3000/api/tasks
+curl -i http://localhost:3000/api/finance
+curl -i http://localhost:3000/api/suppliers
 ```
 
 ---
@@ -312,7 +427,7 @@ These items require a live running instance with seeded data and are not verifia
 
 1. **Chart rendering in Finance** — verifying actual chart data (requires browser + seeded finance records)
 2. **Modal form validation** — testing that required fields reject empty submission in each modal
-3. **Role-based UI hiding** — VIEWER role seeing read-only vs. edit buttons (client-side rendering check)
+3. **Viewer write block toast** — confirming 403 from write API shows toast error (not silent fail)
 4. **Pagination "load more" / page controls** — if any module shows more than the default page size
 5. **Toast notifications** — confirm success/error toasts appear after save/delete
 6. **Token expiry** — confirm that after 8 hours the user is redirected to login
