@@ -1,130 +1,68 @@
 # Sterling Edge Operations OS
 
-A full-stack procurement and CRM management system built for **Sterling Edge Ltd** — a Kenya-based company focused on AGPO tenders, supply contracts, Exim trading, and government/commercial procurement.
+A full-stack procurement and CRM management system for **Sterling Edge Ltd** — a Kenya-based company managing AGPO tenders, supply contracts, government procurement, and Exim trading.
 
 ---
 
-## Quick Start
+## What this system does
 
-### 1. Prerequisites
+Sterling Edge Operations OS gives the company a single workspace to manage the full procurement cycle:
 
-- Node.js 18+
-- PostgreSQL 14+
-
-### 2. Clone & Install
-
-```bash
-git clone <repo>
-cd sterling-edge-ops
-npm install
-```
-
-### 3. Configure Environment
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-DATABASE_URL="postgresql://postgres:password@localhost:5432/sterling_edge_ops"
-NEXTAUTH_SECRET="your-secret-key-run-openssl-rand-base64-32"
-NEXTAUTH_URL="http://localhost:3000"
-```
-
-### 4. Set Up Database
-
-```bash
-# Create DB schema
-npm run db:push
-
-# OR use migrations (recommended for production)
-npm run db:migrate
-
-# Load demo data
-npm run db:seed
-```
-
-### 5. Run the App
-
-```bash
-npm run dev
-```
-
-Visit: **http://localhost:3000**
-
----
-
-## Demo Login Credentials
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@sterlingedge.co.ke | Admin@2024 |
-| Director | director@sterlingedge.co.ke | User@2024 |
-| Procurement Officer | procurement@sterlingedge.co.ke | User@2024 |
-| Finance Officer | finance@sterlingedge.co.ke | User@2024 |
+- **Track clients and ministries** through a relationship pipeline from first contact to won contract
+- **Score bid opportunities** using a 9-factor weighted model before committing resources
+- **Manage tender submissions** from identification through to award or loss
+- **Track contracts** with live margin, working capital exposure, and financing gap calculations
+- **Monitor suppliers** with reliability ratings, price history, and delivery terms
+- **Manage documents** with expiry alerts for TCC, AGPO cert, KRA PIN, CR12, and bid documents
+- **Assign and track tasks** linked to clients, tenders, contracts, or suppliers
+- **See the finance picture** at portfolio level — total revenue, costs, margins, cash exposure
 
 ---
 
 ## Modules
 
-### Dashboard
-- KPI cards: active tenders, pipeline value, cash exposure, tasks today
-- Deadline-sorted tender list with status and stage
-- Task list with overdue highlights
-- Active contracts table with status, margin, and payment dates
+| Module | Purpose |
+|--------|---------|
+| **Dashboard** | KPI cards, deadline-sorted tenders, urgent tasks, active contracts |
+| **CRM** | Client pipeline — Lead → Contact → Quote → Negotiation → Won/Lost |
+| **Tenders** | Full lifecycle with bid/no-bid scoring, AGPO tracking, document checklist |
+| **Suppliers** | Reliability ratings, price history, certifications, lead times |
+| **Contracts** | Status lifecycle, margin calculation, working capital exposure |
+| **Finance** | Portfolio snapshot — revenue, cost, gross profit, financing gaps |
+| **Tasks** | Priority task list linked to any record — overdue highlights |
+| **Documents** | 19 document types, expiry tracking, verified status |
 
-### CRM (Client Relationship Management)
-- Track ministries, agencies, county governments, private companies
-- Pipeline stages: Lead → Contact → Requirements → Quote → Negotiation → Won/Lost
-- Opportunity values, follow-up dates, relationship health
-- Contact database per client
-- Link to tenders, contracts, tasks, and documents
+---
 
-### Tender Management System
-- Full tender lifecycle: Identified → Submitted → Won/Lost
-- **Bid/No-Bid scoring system** (9 weighted factors):
-  - Eligibility, Capital Available, Deadline Pressure, Document Readiness
-  - Supplier Availability, Margin Potential, Relationship Strength
-  - License Compliance, Payment Risk
-- Score → Automatic recommendation: PURSUE / MONITOR / DECLINE
-- AGPO / Open / Restricted / International eligibility tracking
-- Mandatory document checklist, license requirements
-- Bid bond tracking
+## Bid / No-Bid Scoring
 
-### Supplier Management
-- Rate suppliers: Excellent / Good / Average / Poor / Blacklisted
-- Track price history per item
-- Delivery capacity, credit terms, lead times, certifications
-- Link to contracts and documents
+Each tender is scored across 9 weighted factors producing a 0–100 score:
 
-### Contract & Order Tracking
-- Full lifecycle: Awarded → Sourcing → PO Issued → Transit → Delivered → Invoiced → Paid
-- Live margin calculation from contract value and cost inputs
-- Working capital exposure per contract
-- Financing gap = required capital minus available financing
-- Supplier vs client payment date tracking
-- Risk level per contract
+| Factor | Weight |
+|--------|--------|
+| Eligibility (AGPO, Open, Restricted) | 20% |
+| Capital Available | 15% |
+| Document Readiness | 15% |
+| Deadline Pressure | 10% |
+| Supplier Availability | 10% |
+| Margin Potential | 10% |
+| Relationship Strength | 10% |
+| License Compliance | 5% |
+| Payment Risk | 5% |
 
-### Finance Snapshot
-- Portfolio-level: total revenue, costs, gross profit, average margin
-- Per-contract finance breakdown
-- Cash exposure across all active contracts
-- Financing gap alerts with action guidance
-- Supplier vs client payment timeline view
+**Decision:** Score ≥ 70 → **PURSUE** · 50–69 → **MONITOR** · < 50 → **DECLINE**
 
-### Task Manager
-- Priority levels: Urgent / High / Medium / Low
-- Link tasks to clients, tenders, contracts, or suppliers
-- One-click complete
-- Overdue and due-today badges
+---
 
-### Document Vault
-- 19 document types: TCC, AGPO, KRA PIN, CR12, NCA, bid docs, LPOs, invoices, contracts, etc.
-- Expiry date tracking with alerts (expired + expiring within 30 days)
-- Link documents to clients, tenders, suppliers, or contracts
-- Verified status flag
+## User Roles
+
+| Role | Access |
+|------|--------|
+| Admin | Full access including settings and user management |
+| Director | Full read/write across all modules |
+| Procurement Officer | Tenders, suppliers, contracts, tasks, documents |
+| Finance Officer | Finance, contracts, payments, documents |
+| Viewer | Read-only across all modules |
 
 ---
 
@@ -134,11 +72,10 @@ Visit: **http://localhost:3000**
 |-------|-----------|
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript |
-| Styling | Tailwind CSS |
+| Styling | Tailwind CSS + Radix UI |
 | Database | PostgreSQL |
 | ORM | Prisma |
 | Auth | NextAuth.js (JWT) |
-| UI Components | Radix UI primitives |
 | Icons | Lucide React |
 | Charts | Recharts |
 
@@ -149,118 +86,138 @@ Visit: **http://localhost:3000**
 ```
 sterling-edge-ops/
 ├── prisma/
-│   ├── schema.prisma          # Full database schema
-│   └── seed.ts                # Demo data (Kenya-focused)
+│   ├── schema.prisma          # 12 models, all enums
+│   ├── seed.ts                # Demo data (Kenya-focused)
+│   └── seed-if-empty.ts       # Idempotent seed runner for CI/CD
 ├── src/
 │   ├── app/
 │   │   ├── (auth)/login/      # Login page
-│   │   ├── (dashboard)/       # Protected routes
+│   │   ├── (dashboard)/       # Protected app routes
 │   │   │   ├── page.tsx       # Dashboard
-│   │   │   ├── crm/           # CRM module
-│   │   │   ├── tenders/       # Tender management
-│   │   │   ├── suppliers/     # Supplier management
-│   │   │   ├── contracts/     # Contract tracking
-│   │   │   ├── finance/       # Finance snapshot
-│   │   │   ├── tasks/         # Task manager
-│   │   │   ├── documents/     # Document vault
-│   │   │   └── settings/      # Settings
+│   │   │   ├── crm/
+│   │   │   ├── tenders/
+│   │   │   ├── suppliers/
+│   │   │   ├── contracts/
+│   │   │   ├── finance/
+│   │   │   ├── tasks/
+│   │   │   ├── documents/
+│   │   │   └── settings/
 │   │   └── api/               # REST API routes
-│   ├── components/
-│   │   ├── ui/                # Reusable UI components
-│   │   ├── layout/            # Sidebar, Header
-│   │   ├── dashboard/         # Dashboard components
-│   │   ├── crm/               # CRM components + modals
-│   │   ├── tenders/           # Tender components + scoring
-│   │   ├── suppliers/         # Supplier components
-│   │   ├── contracts/         # Contract components
-│   │   ├── finance/           # Finance components
-│   │   ├── tasks/             # Task components
-│   │   └── documents/         # Document vault components
+│   ├── components/            # UI components per module
 │   ├── lib/
-│   │   ├── prisma.ts          # Prisma client singleton
 │   │   ├── auth.ts            # NextAuth config
-│   │   └── utils.ts           # formatCurrency, getStatusColor, etc.
+│   │   ├── prisma.ts          # Prisma client singleton
+│   │   └── utils.ts           # formatCurrency, calcBidScore, etc.
 │   └── types/
-│       └── index.ts           # Shared types
+│       └── index.ts
+├── scripts/
+│   └── docker-entrypoint.sh   # DB wait → schema push → seed → start
+├── .env.example               # Local dev environment template
+├── .env.production.example    # Production environment template
+├── .env.docker                # Docker Compose environment template
+├── vercel.json                # Vercel build configuration
+├── Dockerfile                 # Multi-stage production image
+├── docker-compose.yml         # Self-hosted stack (app + postgres)
+└── DEPLOY.md                  # Full deployment guide
 ```
 
 ---
 
-## Seed Data Summary
+## Local Development
 
-| Entity | Count | Notable |
-|--------|-------|---------|
+### Requirements
+- Node.js 18+
+- PostgreSQL 14+ running locally
+
+### Setup
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Copy environment template
+cp .env.example .env
+# Edit .env — set DATABASE_URL to your local Postgres
+
+# 3. Push schema and load demo data
+npm run db:push
+npm run db:seed
+
+# 4. Start the dev server
+npm run dev
+```
+
+Open **http://localhost:3000**
+
+### Useful scripts
+
+```bash
+npm run db:push       # Push Prisma schema to database
+npm run db:seed       # Load demo data
+npm run db:reset      # Full reset: drop, repush, reseed
+npm run db:studio     # Open Prisma Studio (visual DB browser)
+npm run lint          # Run ESLint
+npm run build         # Production build
+```
+
+---
+
+## Demo Data
+
+The seed loads a complete Kenya-focused dataset for testing all modules:
+
+| Entity | Count | Notable examples |
+|--------|-------|-----------------|
 | Users | 4 | Admin, Director, Procurement Officer, Finance Officer |
-| Clients | 5 | MoH, KeNHA, NHIF, NCC, Safaricom |
-| Contacts | 8 | 1–2 contacts per client |
+| Clients | 5 | Ministry of Health, KeNHA, NHIF, Nairobi City County, Safaricom |
+| Contacts | 8 | 1–2 per client |
 | Suppliers | 6 | Medical, ICT, Civil, Office, Logistics, Pharma |
-| Tenders | 6 | 1 strong (score 78), 1 high-risk (38), 1 lost, 1 AGPO, 1 submitted, 1 ICT |
-| Contracts | 4 | 1 in-transit, 1 invoiced (pending payment), 1 paid (WON), 1 sourcing |
-| Tasks | 10 | Mix of urgent, overdue, in-progress, done |
-| Documents | 6 | TCC (expired!), AGPO, contract, invoice, tender doc |
+| Tenders | 6 | One high-risk (score 38), one strong (score 78), one lost, one AGPO |
+| Contracts | 4 | In-transit, invoiced (pending payment), paid (won), sourcing |
+| Tasks | 10 | Mix of urgent, overdue, in-progress |
+| Documents | 6 | TCC (expired — triggers alert), AGPO cert, KRA PIN |
+
+### Demo login credentials
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@sterlingedge.co.ke | Admin@2024 |
+| Director | director@sterlingedge.co.ke | User@2024 |
+| Procurement Officer | procurement@sterlingedge.co.ke | User@2024 |
+| Finance Officer | finance@sterlingedge.co.ke | User@2024 |
+
+> **Before going live:** change these passwords and set `NEXTAUTH_SECRET` to a strong random value.
 
 ---
 
-## User Roles
+## Kenya-Specific Context
 
-| Role | Access |
-|------|--------|
-| Admin | Full access including user management |
-| Director | Full read/write across all modules |
-| Procurement Officer | Tenders, suppliers, contracts, tasks, documents |
-| Finance Officer | Finance, contracts, payments, documents |
-| Viewer | Read-only across all modules |
+- Currency is KES throughout
+- AGPO = Access to Government Procurement Opportunities (Youth, Women, PWDs)
+- Key government documents: TCC, AGPO cert, KRA PIN, CR12, audited accounts, NCA cert
+- Government payment terms: 30–90 days (county governments up to 120 days)
+- Bid bonds: typically 1–3% of tender value from a bank or insurance company
 
 ---
 
-## Bid/No-Bid Scoring System
-
-Each tender is scored on 9 factors (0–100 each), weighted:
-
-| Factor | Weight | Guide |
-|--------|--------|-------|
-| Eligibility | 20% | AGPO=90, Qualified Open=70, Risky=30 |
-| Capital Available | 15% | Self-funded=90, Need finance=60, Critical gap=20 |
-| Document Readiness | 15% | All ready=90, 1-2 missing=60, Many missing=20 |
-| Deadline Pressure | 10% | 3+ weeks=90, 2 weeks=60, <1 week=20 |
-| Supplier Availability | 10% | Confirmed=90, Good option=70, Unconfirmed=30 |
-| Margin Potential | 10% | >25%=90, 15–25%=70, <10%=30 |
-| Relationship Strength | 10% | Strong contact=90, Known=60, Cold=20 |
-| License Compliance | 5% | All licenses=90, Can get=60, Missing=20 |
-| Payment Risk | 5% | Good payer=90, Average=60, High risk=20 |
-
-**Result:**
-- Score ≥ 70 → PURSUE
-- Score 50–69 → MONITOR  
-- Score < 50 → DECLINE
-
----
-
-## Suggested Next Improvements
+## Suggested Next Phase
 
 ### Phase 2 (High Priority)
-1. **File uploads** — Actual document storage (S3/Cloudflare R2) for Document Vault
-2. **Client detail page** — Full profile view with timeline, notes, and linked records
-3. **Tender detail page** — Bid submission checklist, document tracker, addenda log
-4. **Contract detail page** — Payment schedule, milestone tracker, dispute log
-5. **Email notifications** — Deadline alerts, task reminders via email/SMS (Africa's Talking)
+1. File uploads — actual document storage (S3 or Cloudflare R2)
+2. Client detail page — full profile with timeline, notes, linked records
+3. Tender detail page — submission checklist, document tracker, addenda log
+4. Contract detail page — payment schedule, milestone tracker
+5. Email/SMS notifications — deadline alerts via Africa's Talking
 
 ### Phase 3 (Growth)
-6. **Reporting** — Monthly P&L by contract, tender win rate, supplier performance
-7. **AGPO compliance tracker** — Certificate expiry calendar, renewal reminders
-8. **Supplier portal** — Suppliers can submit quotes directly
-9. **Multi-company support** — Manage multiple entities under one account
-10. **Mobile app** — React Native for field procurement officers
-11. **IFMIS / eProcurement integration** — Auto-import public tenders from Kenya portals
-12. **Financial projections** — 90-day cash flow forecast based on active contracts
+6. Monthly P&L reporting by contract
+7. AGPO compliance calendar with renewal reminders
+8. Supplier portal — submit quotes directly
+9. IFMIS / eProcurement integration — auto-import public tenders
+10. 90-day cash flow projection from active contracts
 
 ---
 
-## Kenya-Specific Notes
+## Deployment
 
-- Currency is KES (Kenya Shilling) throughout
-- AGPO (Access to Government Procurement Opportunities) for Youth, Women, PWDs
-- Key government portals: IFMIS, eProcurement, iTax (KRA), AGPO portal
-- Common document requirements: TCC, AGPO cert, KRA PIN, CR12, audited accounts
-- Payment terms: Government typically pays in 30–90 days; county governments up to 120 days
-- Bid bonds: Typically 1–3% of tender value; sourced from banks or insurance companies
+See **DEPLOY.md** for full instructions covering Vercel + Neon, Docker Compose, Railway, Render, and DigitalOcean.
