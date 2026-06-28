@@ -1,16 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withAuth, ALL_ROLES, OPS_WRITE, auditLog, noStore } from "@/lib/api-utils";
+import { updateTaskSchema } from "@/lib/validations";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
+  const { id } = ctx.params!;
 
-  const body = await req.json();
+  const task = await prisma.task.findUnique({
+    where: { id },
+    include: {
+      assignee: { select: { id: true, name: true } },
+      creator: { select: { id: true, name: true } },
+      client: { select: { id: true, name: true } },
+      tender: { select: { id: true, tenderName: true } },
+      contract: { select: { id: true, title: true } },
+      supplier: { select: { id: true, name: true } },
+    },
+  });
+
+  if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return noStore(NextResponse.json(task));
+}, ALL_ROLES);
+
+export const PATCH = withAuth(async (req: NextRequest, session, ctx) => {
+  const { id } = ctx.params!;
+  const body = updateTaskSchema.parse(await req.json());
 
   const task = await prisma.task.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       ...body,
       dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
@@ -18,13 +35,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     },
   });
 
+  auditLog(session.user.id, "UPDATE", "task", id);
   return NextResponse.json(task);
-}
+}, OPS_WRITE);
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  await prisma.task.delete({ where: { id: params.id } });
+export const DELETE = withAuth(async (_req: NextRequest, session, ctx) => {
+  const { id } = ctx.params!;
+  await prisma.task.delete({ where: { id } });
+  auditLog(session.user.id, "DELETE", "task", id);
   return NextResponse.json({ success: true });
-}
+}, OPS_WRITE);

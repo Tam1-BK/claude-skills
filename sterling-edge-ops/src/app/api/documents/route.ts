@@ -1,41 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  withAuth, DOCS_READ, DOCS_WRITE, auditLog, noStore,
+  parsePagination, paginated,
+} from "@/lib/api-utils";
+import { createDocumentSchema } from "@/lib/validations";
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type") ?? "";
   const search = searchParams.get("search") ?? "";
+  const pagination = parsePagination(searchParams);
 
-  const documents = await prisma.document.findMany({
-    where: {
-      AND: [
-        search ? { name: { contains: search, mode: "insensitive" } } : {},
-        type ? { type: type as any } : {},
-      ],
-    },
-    include: {
-      client: { select: { name: true } },
-      tender: { select: { tenderName: true } },
-      supplier: { select: { name: true } },
-      contract: { select: { title: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const where = {
+    AND: [
+      search ? { name: { contains: search, mode: "insensitive" as const } } : {},
+      type ? { type: type as any } : {},
+    ],
+  };
 
-  return NextResponse.json(documents);
-}
+  const [documents, total] = await Promise.all([
+    prisma.document.findMany({
+      where,
+      include: {
+        client: { select: { name: true } },
+        tender: { select: { tenderName: true } },
+        supplier: { select: { name: true } },
+        contract: { select: { title: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: pagination.skip,
+      take: pagination.pageSize,
+    }),
+    prisma.document.count({ where }),
+  ]);
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return noStore(NextResponse.json(paginated(documents, total, pagination)));
+}, DOCS_READ);
 
-  const body = await req.json();
-  const userId = (session.user as any).id;
+export const POST = withAuth(async (req: NextRequest, session) => {
+  const body = createDocumentSchema.parse(await req.json());
 
   const document = await prisma.document.create({
     data: {
@@ -44,17 +48,18 @@ export async function POST(req: NextRequest) {
       fileName: body.fileName ?? body.name,
       fileSize: body.fileSize ?? null,
       mimeType: body.mimeType ?? null,
-      url: body.url ?? null,
+      url: body.url || null,
       expiryDate: body.expiryDate ? new Date(body.expiryDate) : null,
       isVerified: body.isVerified ?? false,
-      notes: body.notes,
-      clientId: body.clientId || null,
-      tenderId: body.tenderId || null,
-      supplierId: body.supplierId || null,
-      contractId: body.contractId || null,
-      uploadedById: userId,
+      notes: body.notes ?? null,
+      clientId: body.clientId ?? null,
+      tenderId: body.tenderId ?? null,
+      supplierId: body.supplierId ?? null,
+      contractId: body.contractId ?? null,
+      uploadedById: session.user.id,
     },
   });
 
+  auditLog(session.user.id, "CREATE", "document", document.id, { name: document.name });
   return NextResponse.json(document, { status: 201 });
-}
+}, DOCS_WRITE);

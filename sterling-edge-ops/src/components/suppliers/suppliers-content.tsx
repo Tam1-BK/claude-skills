@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Star, Phone, Mail, Package, Clock } from "lucide-react";
+import Link from "next/link";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { formatCurrency, getStatusColor, formatLabel } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { SupplierFormModal } from "@/components/suppliers/supplier-form-modal";
@@ -20,6 +22,7 @@ const RELIABILITY_COLORS: Record<string, string> = {
 export function SuppliersContent() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [search, setSearch] = useState("");
   const [reliabilityFilter, setReliabilityFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -30,8 +33,9 @@ export function SuppliersContent() {
     if (search) params.set("search", search);
     if (reliabilityFilter !== "all") params.set("reliability", reliabilityFilter);
     const res = await fetch(`/api/suppliers?${params}`);
-    const data = await res.json();
-    setSuppliers(data);
+    if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
+    const json = await res.json();
+    setSuppliers(json.data ?? []);
     setLoading(false);
   }, [search, reliabilityFilter]);
 
@@ -39,6 +43,8 @@ export function SuppliersContent() {
     const t = setTimeout(fetchSuppliers, 300);
     return () => clearTimeout(t);
   }, [fetchSuppliers]);
+
+  if (forbidden) return <AccessDenied />;
 
   return (
     <div className="p-6 space-y-5">
@@ -76,7 +82,7 @@ export function SuppliersContent() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {suppliers.map((supplier) => (
-            <div key={supplier.id} className="border rounded-lg bg-white p-5 hover:shadow-md transition-shadow">
+            <Link key={supplier.id} href={`/suppliers/${supplier.id}`} className="block border rounded-lg bg-white p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <div className="min-w-0">
                   <div className="font-semibold text-sm truncate">{supplier.name}</div>
@@ -139,7 +145,7 @@ export function SuppliersContent() {
                 <span className="text-muted-foreground">{supplier._count.contracts} contracts</span>
                 {supplier.county && <span className="text-muted-foreground">{supplier.county}</span>}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

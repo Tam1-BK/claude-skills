@@ -1,52 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withAuth, OPS_READ, OPS_WRITE, auditLog, noStore } from "@/lib/api-utils";
+import { updateClientSchema } from "@/lib/validations";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
+  const { id } = ctx.params!;
 
   const client = await prisma.client.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       owner: { select: { id: true, name: true, email: true } },
       contacts: true,
       tenders: { orderBy: { createdAt: "desc" }, take: 10 },
-      contracts: { orderBy: { createdAt: "desc" }, take: 10, include: { supplier: { select: { name: true } } } },
+      contracts: {
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        include: { supplier: { select: { name: true } } },
+      },
       documents: { orderBy: { createdAt: "desc" } },
-      tasks: { where: { status: { notIn: ["DONE", "CANCELLED"] } }, orderBy: { dueDate: "asc" }, include: { assignee: { select: { name: true } } } },
-      notes: { orderBy: { createdAt: "desc" }, include: { author: { select: { name: true } } } },
+      tasks: {
+        where: { status: { notIn: ["DONE", "CANCELLED"] } },
+        orderBy: { dueDate: "asc" },
+        include: { assignee: { select: { name: true } } },
+      },
+      notes: {
+        orderBy: { createdAt: "desc" },
+        include: { author: { select: { name: true } } },
+      },
     },
   });
 
   if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(client);
-}
+  return noStore(NextResponse.json(client));
+}, OPS_READ);
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json();
+export const PATCH = withAuth(async (req: NextRequest, session, ctx) => {
+  const { id } = ctx.params!;
+  const body = updateClientSchema.parse(await req.json());
 
   const client = await prisma.client.update({
-    where: { id: params.id },
+    where: { id },
     data: {
-      ...body,
-      nextFollowUp: body.nextFollowUp ? new Date(body.nextFollowUp) : undefined,
-      lastInteraction: body.lastInteraction ? new Date(body.lastInteraction) : undefined,
-      opportunityValue: body.opportunityValue != null ? parseFloat(body.opportunityValue) : undefined,
+      ...(body.name != null && { name: body.name }),
+      ...(body.type != null && { type: body.type }),
+      ...(body.registrationNumber !== undefined && { registrationNumber: body.registrationNumber }),
+      ...(body.kraPin !== undefined && { kraPin: body.kraPin }),
+      ...(body.contactPerson !== undefined && { contactPerson: body.contactPerson }),
+      ...(body.contactEmail !== undefined && { contactEmail: body.contactEmail || null }),
+      ...(body.contactPhone !== undefined && { contactPhone: body.contactPhone }),
+      ...(body.physicalAddress !== undefined && { physicalAddress: body.physicalAddress }),
+      ...(body.county !== undefined && { county: body.county }),
+      ...(body.website !== undefined && { website: body.website || null }),
+      ...(body.relationshipOwner != null && { relationshipOwner: body.relationshipOwner }),
+      ...(body.opportunityValue !== undefined && { opportunityValue: body.opportunityValue }),
+      ...(body.relationshipStatus != null && { relationshipStatus: body.relationshipStatus }),
+      ...(body.pipelineStage != null && { pipelineStage: body.pipelineStage }),
+      ...(body.priority != null && { priority: body.priority }),
+      ...(body.tags != null && { tags: body.tags }),
+      ...(body.nextFollowUp !== undefined && {
+        nextFollowUp: body.nextFollowUp ? new Date(body.nextFollowUp) : null,
+      }),
     },
   });
 
+  auditLog(session.user.id, "UPDATE", "client", id);
   return NextResponse.json(client);
-}
+}, OPS_WRITE);
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  await prisma.client.delete({ where: { id: params.id } });
+export const DELETE = withAuth(async (_req: NextRequest, session, ctx) => {
+  const { id } = ctx.params!;
+  await prisma.client.delete({ where: { id } });
+  auditLog(session.user.id, "DELETE", "client", id);
   return NextResponse.json({ success: true });
-}
+}, OPS_WRITE);

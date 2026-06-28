@@ -1,66 +1,71 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  withAuth, OPS_READ, OPS_WRITE, auditLog, noStore,
+  parsePagination, paginated,
+} from "@/lib/api-utils";
+import { createClientSchema } from "@/lib/validations";
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") ?? "";
   const stage = searchParams.get("stage") ?? "";
   const type = searchParams.get("type") ?? "";
   const status = searchParams.get("status") ?? "";
+  const pagination = parsePagination(searchParams);
 
-  const clients = await prisma.client.findMany({
-    where: {
-      AND: [
-        search ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { contactPerson: { contains: search, mode: "insensitive" } },
-            { county: { contains: search, mode: "insensitive" } },
-          ],
-        } : {},
-        stage ? { pipelineStage: stage as any } : {},
-        type ? { type: type as any } : {},
-        status ? { relationshipStatus: status as any } : {},
-      ],
-    },
-    include: {
-      owner: { select: { name: true } },
-      contacts: { take: 3 },
-      _count: { select: { tenders: true, contracts: true, tasks: true } },
-    },
-    orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
-  });
+  const where = {
+    AND: [
+      search ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { contactPerson: { contains: search, mode: "insensitive" as const } },
+          { county: { contains: search, mode: "insensitive" as const } },
+        ],
+      } : {},
+      stage ? { pipelineStage: stage as any } : {},
+      type ? { type: type as any } : {},
+      status ? { relationshipStatus: status as any } : {},
+    ],
+  };
 
-  return NextResponse.json(clients);
-}
+  const [clients, total] = await Promise.all([
+    prisma.client.findMany({
+      where,
+      include: {
+        owner: { select: { name: true } },
+        contacts: { take: 3 },
+        _count: { select: { tenders: true, contracts: true, tasks: true } },
+      },
+      orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
+      skip: pagination.skip,
+      take: pagination.pageSize,
+    }),
+    prisma.client.count({ where }),
+  ]);
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return noStore(NextResponse.json(paginated(clients, total, pagination)));
+}, OPS_READ);
 
-  const body = await req.json();
+export const POST = withAuth(async (req: NextRequest, session) => {
+  const body = createClientSchema.parse(await req.json());
 
   const client = await prisma.client.create({
     data: {
       name: body.name,
       type: body.type,
-      registrationNumber: body.registrationNumber,
-      kraPin: body.kraPin,
-      contactPerson: body.contactPerson,
-      contactEmail: body.contactEmail,
-      contactPhone: body.contactPhone,
-      physicalAddress: body.physicalAddress,
-      county: body.county,
-      website: body.website,
-      relationshipOwner: body.relationshipOwner,
-      ownerId: (session.user as any).id,
+      registrationNumber: body.registrationNumber ?? null,
+      kraPin: body.kraPin ?? null,
+      contactPerson: body.contactPerson ?? null,
+      contactEmail: body.contactEmail || null,
+      contactPhone: body.contactPhone ?? null,
+      physicalAddress: body.physicalAddress ?? null,
+      county: body.county ?? null,
+      website: body.website || null,
+      relationshipOwner: body.relationshipOwner ?? "",
+      ownerId: session.user.id,
       nextFollowUp: body.nextFollowUp ? new Date(body.nextFollowUp) : null,
-      opportunityValue: body.opportunityValue ? parseFloat(body.opportunityValue) : null,
+      opportunityValue: body.opportunityValue ?? null,
       relationshipStatus: body.relationshipStatus ?? "PROSPECT",
       pipelineStage: body.pipelineStage ?? "LEAD_IDENTIFIED",
       priority: body.priority ?? "MEDIUM",
@@ -68,5 +73,6 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  auditLog(session.user.id, "CREATE", "client", client.id, { name: client.name });
   return NextResponse.json(client, { status: 201 });
-}
+}, OPS_WRITE);

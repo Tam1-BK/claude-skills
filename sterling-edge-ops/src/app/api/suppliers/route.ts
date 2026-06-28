@@ -1,71 +1,77 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  withAuth, OPS_READ, OPS_WRITE, auditLog, noStore,
+  parsePagination, paginated,
+} from "@/lib/api-utils";
+import { createSupplierSchema } from "@/lib/validations";
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") ?? "";
   const reliability = searchParams.get("reliability") ?? "";
+  const pagination = parsePagination(searchParams);
 
-  const suppliers = await prisma.supplier.findMany({
-    where: {
-      AND: [
-        search ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { category: { contains: search, mode: "insensitive" } },
-            { contactPerson: { contains: search, mode: "insensitive" } },
-          ],
-        } : {},
-        reliability ? { reliability: reliability as any } : {},
-        { active: true },
-      ],
-    },
-    include: {
-      priceHistory: { orderBy: { date: "desc" }, take: 3 },
-      _count: { select: { contracts: true } },
-    },
-    orderBy: [{ reliability: "asc" }, { name: "asc" }],
-  });
+  const where = {
+    AND: [
+      search ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { category: { contains: search, mode: "insensitive" as const } },
+          { contactPerson: { contains: search, mode: "insensitive" as const } },
+        ],
+      } : {},
+      reliability ? { reliability: reliability as any } : {},
+      { active: true },
+    ],
+  };
 
-  return NextResponse.json(suppliers);
-}
+  const [suppliers, total] = await Promise.all([
+    prisma.supplier.findMany({
+      where,
+      include: {
+        priceHistory: { orderBy: { date: "desc" }, take: 3 },
+        _count: { select: { contracts: true } },
+      },
+      orderBy: [{ reliability: "asc" }, { name: "asc" }],
+      skip: pagination.skip,
+      take: pagination.pageSize,
+    }),
+    prisma.supplier.count({ where }),
+  ]);
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return noStore(NextResponse.json(paginated(suppliers, total, pagination)));
+}, OPS_READ);
 
-  const body = await req.json();
+export const POST = withAuth(async (req: NextRequest, session) => {
+  const body = createSupplierSchema.parse(await req.json());
 
   const supplier = await prisma.supplier.create({
     data: {
       name: body.name,
-      registrationNumber: body.registrationNumber,
-      kraPin: body.kraPin,
+      registrationNumber: body.registrationNumber ?? null,
+      kraPin: body.kraPin ?? null,
       category: body.category,
-      subcategory: body.subcategory,
-      contactPerson: body.contactPerson,
-      contactEmail: body.contactEmail,
-      contactPhone: body.contactPhone,
-      physicalAddress: body.physicalAddress,
-      county: body.county,
-      website: body.website,
+      subcategory: body.subcategory ?? null,
+      contactPerson: body.contactPerson ?? null,
+      contactEmail: body.contactEmail || null,
+      contactPhone: body.contactPhone ?? null,
+      physicalAddress: body.physicalAddress ?? null,
+      county: body.county ?? null,
+      website: body.website || null,
       reliability: body.reliability ?? "GOOD",
-      deliveryCapacity: body.deliveryCapacity,
-      creditTerms: body.creditTerms,
-      paymentTerms: body.paymentTerms,
-      leadTimeDays: body.leadTimeDays ? parseInt(body.leadTimeDays) : null,
-      minimumOrderValue: body.minimumOrderValue ? parseFloat(body.minimumOrderValue) : null,
-      pastPerformance: body.pastPerformance,
+      deliveryCapacity: body.deliveryCapacity ?? null,
+      creditTerms: body.creditTerms ?? null,
+      paymentTerms: body.paymentTerms ?? null,
+      leadTimeDays: body.leadTimeDays ?? null,
+      minimumOrderValue: body.minimumOrderValue ?? null,
+      pastPerformance: body.pastPerformance ?? null,
       requiredCerts: body.requiredCerts ?? [],
       tags: body.tags ?? [],
-      notes: body.notes,
+      notes: body.notes ?? null,
     },
   });
 
+  auditLog(session.user.id, "CREATE", "supplier", supplier.id, { name: supplier.name });
   return NextResponse.json(supplier, { status: 201 });
-}
+}, OPS_WRITE);

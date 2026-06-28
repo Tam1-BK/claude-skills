@@ -43,8 +43,8 @@ export function DocumentFormModal({ open, onClose, onSaved }: DocumentFormModalP
 
   useEffect(() => {
     if (open) {
-      fetch("/api/crm").then(r => r.json()).then(setClients);
-      fetch("/api/suppliers").then(r => r.json()).then(setSuppliers);
+      fetch("/api/crm").then(r => r.json()).then(d => setClients(d.data ?? []));
+      fetch("/api/suppliers").then(r => r.json()).then(d => setSuppliers(d.data ?? []));
     }
   }, [open]);
 

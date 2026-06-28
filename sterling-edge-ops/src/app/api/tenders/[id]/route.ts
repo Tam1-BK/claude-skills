@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withAuth, OPS_READ, OPS_WRITE, auditLog, noStore } from "@/lib/api-utils";
+import { updateTenderSchema } from "@/lib/validations";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withAuth(async (_req: NextRequest, _session, ctx) => {
+  const { id } = ctx.params!;
 
   const tender = await prisma.tender.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       client: true,
       documents: { orderBy: { createdAt: "desc" } },
@@ -25,33 +24,24 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   });
 
   if (!tender) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return noStore(NextResponse.json(tender));
+}, OPS_READ);
+
+export const PATCH = withAuth(async (req: NextRequest, session, ctx) => {
+  const { id } = ctx.params!;
+  const body = updateTenderSchema.parse(await req.json());
+
+  const data: Record<string, unknown> = { ...body };
+  if (body.deadline) data.deadline = new Date(body.deadline);
+
+  const tender = await prisma.tender.update({ where: { id }, data: data as any });
+  auditLog(session.user.id, "UPDATE", "tender", id);
   return NextResponse.json(tender);
-}
+}, OPS_WRITE);
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json();
-
-  const tender = await prisma.tender.update({
-    where: { id: params.id },
-    data: {
-      ...body,
-      deadline: body.deadline ? new Date(body.deadline) : undefined,
-      submittedAt: body.submittedAt ? new Date(body.submittedAt) : undefined,
-      estimatedValue: body.estimatedValue != null ? parseFloat(body.estimatedValue) : undefined,
-      bidBondAmount: body.bidBondAmount != null ? parseFloat(body.bidBondAmount) : undefined,
-    },
-  });
-
-  return NextResponse.json(tender);
-}
-
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  await prisma.tender.delete({ where: { id: params.id } });
+export const DELETE = withAuth(async (_req: NextRequest, session, ctx) => {
+  const { id } = ctx.params!;
+  await prisma.tender.delete({ where: { id } });
+  auditLog(session.user.id, "DELETE", "tender", id);
   return NextResponse.json({ success: true });
-}
+}, OPS_WRITE);
